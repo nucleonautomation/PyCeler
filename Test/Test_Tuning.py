@@ -37,6 +37,11 @@ class Candidate_Tuning(unittest.TestCase):
             self.assertTrue(all(Value["Status"] == "built" for Value in Report["Builds"].values()), Report["Builds"])
             Item = Report["Items"][0]
             self.assertTrue(Item["Cases"], Item)
+            self.assertTrue(all(Value["Extrapolates"] and Value["Native_Size_Ceiling"] is None for Value in Item["Coverage"].values()))
+            self.assertIn("extrapolate", Item["Dispatch_Validation"])
+            for Key, Bands in Item["Dispatch"].items():
+                Maximum = max(Case["Size"] for Case in Item["Cases"] if Case["Key"] == Key)
+                self.assertNotIn([Maximum + 1, 0], Bands)
             for Name in Report["Builds"]:
                 self.assertTrue(any(Case["Validation"].get(Name) == "valid" for Case in Item["Cases"]), (Name, Item))
             self.assertTrue(any(Case.get("Profile") for Case in Item["Cases"]))

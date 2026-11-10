@@ -7,6 +7,7 @@ import sys
 import warnings
 from pathlib import Path
 from time import perf_counter_ns
+from .Selection_Inputs import _Copy, _Value, _Storage_Bytes, _Isolation_Limit, _Fragmented_Input, _Probe_Resource
 
 def _Load(File, Name=None):
     Spec = importlib.util.spec_from_file_location(Name or File.stem, File)
@@ -14,19 +15,6 @@ def _Load(File, Name=None):
     sys.modules[Spec.name] = Module
     Spec.loader.exec_module(Module)
     return Module
-
-class _Fragmented_Input:
-    def __init__(self, Size):
-        self._Data = bytes(range(251)) * (Size // 251 + 1)
-        self._Position = 0
-        self._Requests = []
-
-    def recv(self, Amount):
-        self._Requests.append(Amount)
-        End = self._Position + min(Amount, 113)
-        Chunk = self._Data[self._Position:End]
-        self._Position = End
-        return Chunk
 
 def _Cases(Item):
     if Item["Kind"] == "span":
@@ -46,10 +34,16 @@ def _Cases(Item):
             yield "int", Size, (), tuple(Args)
         return
     if Item["Kind"] == "scalar":
+        if "Size_Plan" in Item:
+            from .Engine import _Scalar_Size_Cases
+            yield from _Scalar_Size_Cases(Item)
+            return
         Depth = len(Item["Size_Arguments"])
         Sizes = sorted({max(1, round(Target ** (1 / Depth))) for Target in (16, 1024, 36864)}) if Depth > 1 else (4, 256, 32768)
+        if Item.get("Span_Maximum") is not None:
+            Sizes = sorted({min(Size, Item["Span_Maximum"]) for Size in Sizes})
         for Size in Sizes if Item["Arguments"] else (1,):
-            Args = tuple(Size if Index in Item["Size_Arguments"] else 2 for Index in range(Item["Arguments"]))
+            Args = tuple(Size * Item.get("Range_Step", 1) if Index in Item["Size_Arguments"] else 0 if Index == Item.get("Range_Start_Argument") else 2 for Index in range(Item["Arguments"]))
             yield "int", Size ** Depth, (), Args
         return
     import numpy as Numpy
@@ -121,7 +115,7 @@ def _Cases(Item):
                 Args = tuple(Args)
             yield Numpy.dtype(Dtype).str, Size, Shape, Args
 
-def _Factory_Cases(Spec):
+def _Factory_Cases(Spec, Deadline=None):
     Paths = sys.path[:]
     try:
         File = Path(Spec["File"])
@@ -130,6 +124,7 @@ def _Factory_Cases(Spec):
         Factory = getattr(Module, Spec["Factory"])
         Cases = []
         for Case in Factory():
+            _Budget(Deadline)
             if len(Cases) == 128:
                 raise ValueError("A workload factory may supply at most 128 cases per region")
             Cases.append(Case)
@@ -137,12 +132,12 @@ def _Factory_Cases(Spec):
     finally:
         sys.path[:] = Paths
 
-def _Representative_Cases(Item):
+def _Representative_Cases(Item, Deadline=None):
     Spec = Item.get("Representative_Workload")
     if Spec is None:
         return []
     Result = []
-    for Index, Case in enumerate(_Factory_Cases(Spec)):
+    for Index, Case in enumerate(_Factory_Cases(Spec, Deadline)):
         if type(Case) is not dict or set(Case) - {"Args", "Label", "Holdout"}:
             raise ValueError("A workload case requires Args and optional Label/Holdout")
         Args = Case.get("Args")
@@ -156,6 +151,14 @@ def _Representative_Cases(Item):
             if any(type(Value) is not int for Value in Values):
                 raise ValueError("Scalar workload size arguments must be exact integers")
             Key, Size, Shape = "int", math.prod(max(0, Value) for Value in Values), ()
+            if "Size_Plan" in Item:
+                from .Engine import _Scalar_Workload_Size
+                Size = _Scalar_Workload_Size(Item["Size_Plan"], Args)
+            elif "Range_Start_Argument" in Item:
+                Begin, End, Step = Args[Item["Range_Start_Argument"]], Args[0], Item.get("Range_Step", 1)
+                if type(Begin) is not int:
+                    raise ValueError("Scalar workload range starts must be exact integers")
+                Size = max(0, 1 + ((End - 1 - Begin) // Step if Step > 0 else (Begin - 1 - End) // -Step))
         else:
             Destination = (1 if Item["Mode"] == "copy" else 0) if Item["Kind"] == "span" else Item.get("Destination", 0)
             Value = Args[Destination]
@@ -167,77 +170,20 @@ def _Representative_Cases(Item):
                     Size = Args[1].shape[0]
             else:
                 raise ValueError("Representative array workloads require a NumPy array or bytearray dispatch input")
-        _Copy(Args)
         Result.append((Key, Size, Shape, Args, dict(Label=Label, Holdout=Holdout, Representative=True)))
     if not Result:
         raise ValueError("A workload factory must supply at least one case")
     return Result
 
-def _Copy(Args):
-    Memo = {}
-    def _Duplicate(Value):
-        if id(Value) in Memo:
-            return Memo[id(Value)]
-        if isinstance(Value, _Fragmented_Input):
-            Result = _Fragmented_Input(0)
-            Result._Data = Value._Data
-        elif type(Value) is bytearray:
-            Result = Value.copy()
-        elif hasattr(Value, "dtype"):
-            import numpy as Numpy
-            if type(Value) is not Numpy.ndarray or Value.dtype.hasobject:
-                raise ValueError("Selection supports plain numeric NumPy arrays")
-            Owner = Value
-            while isinstance(Owner.base, Numpy.ndarray):
-                Owner = Owner.base
-            if Owner.base is not None or not (Owner.flags.c_contiguous or Owner.flags.f_contiguous):
-                raise ValueError("Selection cannot isolate this array's external storage")
-            Key = ("storage", id(Owner))
-            if Key not in Memo:
-                Memo[Key] = Owner.copy(order="K")
-            Offset = Value.__array_interface__["data"][0] - Owner.__array_interface__["data"][0]
-            Result = Numpy.ndarray(Value.shape, dtype=Value.dtype, buffer=Memo[Key], offset=Offset, strides=Value.strides)
-            if not Value.flags.writeable:
-                Result.setflags(write=False)
-        elif type(Value) is list:
-            Result = []
-            Memo[id(Value)] = Result
-            Result.extend(_Duplicate(Item) for Item in Value)
-        elif type(Value) is tuple:
-            Result = tuple(_Duplicate(Item) for Item in Value)
-        elif type(Value) is dict:
-            Result = {}
-            Memo[id(Value)] = Result
-            Result.update((Key, _Duplicate(Item)) for Key, Item in Value.items())
-        elif type(Value) in (int, float, bool, str, bytes, type(None)):
-            Result = Value
-        else:
-            raise ValueError("Selection inputs require arrays, bytearrays or plain scalar/container values")
-        Memo[id(Value)] = Result
-        return Result
-    return _Duplicate(Args)
-
-def _Value(Value):
-    if isinstance(Value, _Fragmented_Input):
-        return type(Value), Value._Position, tuple(Value._Requests)
-    if isinstance(Value, bytearray):
-        return type(Value), bytes(Value)
-    if hasattr(Value, "dtype"):
-        return type(Value), Value.dtype.str, Value.shape, Value.tobytes()
-    if type(Value) is float:
-        import struct
-        return type(Value), struct.pack("!d", Value)
-    if type(Value) in (tuple, list):
-        return type(Value), tuple(_Value(Item) for Item in Value)
-    if type(Value) is dict:
-        return type(Value), tuple((Key, _Value(Item)) for Key, Item in Value.items())
-    return type(Value), Value
-
 class _Probe_Timeout(Exception):
     pass
 
-def _Preflight(Function, Args):
-    Deadline = perf_counter_ns() + 500000000
+def _Budget(Deadline):
+    if Deadline is not None and perf_counter_ns() >= Deadline:
+        raise _Probe_Timeout("Validation and measurement budget exhausted")
+
+def _Preflight(Function, Args, Deadline=None):
+    Deadline = min(Deadline or math.inf, perf_counter_ns() + 500000000)
     def _Limit(Frame, Event, Arg):
         if perf_counter_ns() > Deadline or any(type(Value) is int and Value.bit_length() > 65536 for Value in Frame.f_locals.values()):
             raise _Probe_Timeout()
@@ -253,9 +199,17 @@ def _Preflight(Function, Args):
         sys.settrace(None)
     return True
 
-def _Observe(Function, Args, Baseline_Name=None):
+def _Observe(Function, Args, Baseline_Name=None, Observation=None):
     Inputs = _Copy(Args)
     Fallback = False
+    Statistics = next((Value for Name, Value in getattr(Function, "__globals__", {}).items() if Name.startswith("_Pyceler_") and Name.endswith("Region_Stats") and callable(Value)), None)
+    Before = Statistics() if Statistics else (0, 0)
+    Reduction = next((Value for Name, Value in getattr(Function, "__globals__", {}).items() if Name.startswith("_Pyceler_") and Name.endswith("Reduction_Stats") and callable(Value)), None)
+    Previous = Reduction() if Reduction else None
+    Dispatch = next((Value for Name, Value in getattr(Function, "__globals__", {}).items() if Name.startswith("_Pyceler_") and Name.endswith("Dispatch_Stats") and callable(Value)), None) if Observation is not None else None
+    Execution = {}
+    if Dispatch:
+        Dispatch(True, Reset=True)
     def _Profile(Frame, Event, Arg):
         nonlocal Fallback
         if Event == "call" and Frame.f_code.co_name == Baseline_Name and Frame.f_code.co_filename == "Reference.py":
@@ -267,16 +221,38 @@ def _Observe(Function, Args, Baseline_Name=None):
             warnings.simplefilter("always")
             try:
                 Result = Function(*Inputs)
-                Outcome = ("return", _Value(Result), tuple(Index for Index, Input in enumerate(Inputs) if Input is Result))
             except Exception as Error:
-                Outcome = ("raise", type(Error), Error.args)
+                Outcome = ("raise", type(Error), _Value((Inputs, Error.args)))
+            else:
+                Outcome = ("return", _Value(Result), _Value((Inputs, Result)))
     finally:
         if Baseline_Name:
             sys.setprofile(None)
+        if Dispatch:
+            Execution = Dispatch().get("Execution", {})
+            Dispatch(False)
+    Fallback = Fallback or Statistics is not None and Statistics()[1] > Before[1] or Execution.get("Reason") == "python_fallback"
+    if Observation is not None:
+        Observation.update(Python_Fallback=bool(Fallback), Native_Entry=None, Actual_Team=None)
+        if Execution:
+            Observation.update(Native_Entry=Execution.get("Native_Entry"), Actual_Team=Execution.get("Actual_Team"),
+                               Actual_Mode=Execution.get("Reason"), Fallback_Reason="runtime_guard" if Fallback else None)
+        if Reduction:
+            Current = Reduction()
+            Entered = any(Current.get(Key, 0) > Previous.get(Key, 0) for Key in ("Serial_Calls", "Parallel_Calls"))
+            if Entered or Observation.get("Proof_Reduction"):
+                Observation.update(Native_Entry=Entered, Actual_Team=Current.get("Last_Team") if Entered else None,
+                                   Actual_Mode=Current.get("Last_Mode"), Fallback_Reason=Current.get("Fallback_Reason"))
+        elif Statistics and Statistics()[0] > Before[0] and not Execution:
+            Observation.update(Native_Entry=not Fallback, Actual_Mode="python" if Fallback else "serial")
     return (Outcome, tuple(_Value(Arg) for Arg in Inputs), tuple((Notice.category, str(Notice.message)) for Notice in Notices)), Fallback
 
-def _Measure(Function, Args, Calls):
+def _Measure(Function, Args, Calls, Deadline=None):
+    _Budget(Deadline)
+    if _Storage_Bytes(Args) * Calls > _Isolation_Limit:
+        raise _Probe_Resource("The timing batch exceeds the backing-storage byte budget")
     Inputs = [_Copy(Args) for Index in range(Calls)]
+    _Budget(Deadline)
     Start = perf_counter_ns()
     for Values in Inputs:
         Function(*Values)
@@ -293,24 +269,31 @@ def _Winner(Timings, Gain):
             Winner = Name
     return Winner
 
-def _Time(Functions, Args, Size, Gain):
+def _Time(Functions, Args, Size, Gain, Deadline=None):
     Samples = {Name: [] for Name in Functions}
     Calls = {}
+    Maximum_Copies = max(1, _Isolation_Limit // max(1, _Storage_Bytes(Args)))
     for Name, Function in Functions.items():
-        Warmup = _Measure(Function, Args, 1)
-        Calls[Name] = max(1, min(64, 65536 // max(Size, 1), int(150000 / max(Warmup, 1))))
+        Warmup = _Measure(Function, Args, 1, Deadline)
+        Calls[Name] = max(1, min(64, Maximum_Copies, 65536 // max(Size, 1), int(150000 / max(Warmup, 1))))
     Random = random.Random(31)
     for Batch in range(10):
         Order = list(Functions)
         Random.shuffle(Order)
-        for Name in Order:
-            Samples[Name].append(_Measure(Functions[Name], Args, Calls[Name]))
+        try:
+            Values = {Name: _Measure(Functions[Name], Args, Calls[Name], Deadline) for Name in Order}
+        except _Probe_Timeout:
+            break
+        for Name, Value in Values.items():
+            Samples[Name].append(Value)
         if Batch == 4:
             Medians = sorted(statistics.median(Values) for Values in Samples.values())
             Close = any(Right < Left * Gain * 1.1 for Left, Right in zip(Medians, Medians[1:]))
             if not Close and all(statistics.pstdev(Values) <= statistics.mean(Values) * 0.1 for Values in Samples.values()):
                 break
     Timings = {}
+    if any(len(Values) < 3 for Values in Samples.values()):
+        return Timings
     for Name, Values in Samples.items():
         Timings[Name] = dict(Samples_Ns=Values, Median_Ns=statistics.median(Values), Min_Ns=min(Values), Calls_Per_Batch=Calls[Name],
                              CV=statistics.pstdev(Values) / statistics.mean(Values), Speedup_Vs_Python=statistics.median(Samples["Python"]) / statistics.median(Values))
@@ -318,60 +301,87 @@ def _Time(Functions, Args, Size, Gain):
             Timings[Name]["Speedup_Vs_Serial"] = statistics.median(Samples["Serial"]) / statistics.median(Values)
     return Timings
 
-def _Check(Item, Modules, Threads, Gain, Teams=None):
+def _Check_Case(Item, Modules, Threads, Gain, Teams, Input, Deadline, Invalid):
     from .Selection_Policy import _Candidate_Order
+    Key, Size, Shape, Args, Metadata = Input
     Name = Item["Probe"]
     Reference = getattr(Modules["Python"], Name)
+    _Budget(Deadline)
+    Storage = _Storage_Bytes(Args)
+    if Item["Kind"] == "scalar" and not Metadata.get("Representative") and not _Preflight(Reference, Args, Deadline):
+        raise _Probe_Timeout("Synthetic reference exceeded its 0.5-second preflight budget")
+    Expected, Ignored = _Observe(Reference, Args)
+    Functions = {"Python": Reference}
+    Status = {"Python": "valid"}
+    Observations = {}
+    for Variant in _Candidate_Order(Item["Eligible"]):
+        _Budget(Deadline)
+        if Variant not in Modules or Variant not in Item["Eligible"]:
+            continue
+        if Variant.startswith("OpenMP") and Key == "bytearray":
+            Status[Variant] = "unsupported: byte buffer copy runs serially"
+            continue
+        if Variant.startswith("OpenMP") and (Teams or {}).get(Variant, Threads) < 2:
+            Status[Variant] = "unsupported: OpenMP runtime supplied fewer than two threads"
+            continue
+        Function = getattr(Modules[Variant], Name)
+        Observation = dict(Proof_Reduction="Serial_Contract" in Item)
+        Actual, Fallback = _Observe(Function, Args, Name, Observation)
+        Observations[Variant] = Observation
+        if Actual != Expected:
+            Invalid.add(Variant)
+            Status[Variant] = "invalid: result, exception, identity graph, mutation or warnings differ"
+        elif Fallback:
+            Status[Variant] = "unsupported: runtime guard selected Python"
+        elif Variant.startswith("OpenMP") and Observation.get("Actual_Team") is not None and Observation["Actual_Team"] < 2:
+            Status[Variant] = "unsupported: kernel entered with fewer than two OpenMP workers"
+        else:
+            Functions[Variant] = Function
+            Status[Variant] = "valid"
+    try:
+        Timings = _Time(Functions, Args, Size, Gain, Deadline) if Expected[0][0] == "return" else {}
+    except _Probe_Timeout:
+        Timings = {}
+    Arguments = [Size] if Item["Kind"] == "receive" else (list(Args) if Key == "int" else None)
+    Case = dict(Key=Key, Size=Size, Arguments=Arguments, Shape=Shape, Validation=Status, Timings=Timings,
+                Observations=Observations, Isolation_Bytes=Storage, Winner="Python", **Metadata)
+    if Expected[0][0] == "return" and not Timings:
+        Case["Reason"] = "Inconclusive: fewer than three complete paired samples within the measurement budget"
+    if Item.get("Profile") and Expected[0][0] == "return" and perf_counter_ns() < Deadline:
+        import cProfile
+        Profiler = cProfile.Profile()
+        Profiler.runcall(Reference, *_Copy(Args))
+        Entries = sorted(Profiler.getstats(), key=lambda Entry: -Entry.totaltime)[:8]
+        Case["Profile"] = [dict(Function=Entry.code.co_name if hasattr(Entry.code, "co_name") else str(Entry.code),
+                                Calls=Entry.callcount, Total_Seconds=Entry.totaltime, Self_Seconds=Entry.inlinetime) for Entry in Entries]
+    if Expected[0][0] == "raise":
+        Case["Reason"] = "Reference raised " + Expected[0][1].__name__
+    return Case
+
+def _Check(Item, Modules, Threads, Gain, Teams=None, Deadline=None, Checkpoint=None):
     Cases = []
     Invalid = set()
-    Inputs = [(Key, Size, Shape, Args, {}) for Key, Size, Shape, Args in _Cases(Item)]
-    Inputs.extend(_Representative_Cases(Item))
-    Deadline = perf_counter_ns() + int(Item.get("Tuning", {}).get("Budget_Seconds", 3600) * 1000000000)
-    for Key, Size, Shape, Args, Metadata in Inputs:
-        if perf_counter_ns() > Deadline:
-            Cases.append(dict(Key=Key, Size=Size, Shape=Shape, Validation={"Python": "inconclusive: tuning budget exhausted"}, Timings={}, Winner="Python", **Metadata))
-            continue
-        if Item["Kind"] == "scalar" and not _Preflight(Reference, Args):
-            Case = dict(Key=Key, Size=Size, Arguments=Args, Shape=Shape, Validation={"Python": "inconclusive: reference exceeded time budget"}, Timings={}, Winner="Python")
-            Case.update(Metadata)
-            Cases.append(Case)
-            continue
-        Expected, Ignored = _Observe(Reference, Args)
-        Functions = {"Python": Reference}
-        Status = {"Python": "valid"}
-        for Variant in _Candidate_Order(Item["Eligible"]):
-            if Variant not in Modules or Variant not in Item["Eligible"]:
-                continue
-            if Variant.startswith("OpenMP") and Key == "bytearray":
-                Status[Variant] = "unsupported: byte buffer copy runs serially"
-                continue
-            if Variant.startswith("OpenMP") and (Teams or {}).get(Variant, Threads) < 2:
-                Status[Variant] = "unsupported: OpenMP runtime supplied fewer than two threads"
-                continue
-            Function = getattr(Modules[Variant], Name)
-            Actual, Fallback = _Observe(Function, Args, Name)
-            if Actual != Expected:
-                Invalid.add(Variant)
-                Status[Variant] = "invalid: result, exception, identity, mutation or warnings differ"
-            elif Fallback:
-                Status[Variant] = "unsupported: runtime guard selected Python"
-            else:
-                Functions[Variant] = Function
-                Status[Variant] = "valid"
-        Timings = _Time(Functions, Args, Size, Gain) if Expected[0][0] == "return" else {}
-        Arguments = [Size] if Item["Kind"] == "receive" else (list(Args) if Key == "int" else None)
-        Case = dict(Key=Key, Size=Size, Arguments=Arguments, Shape=Shape, Validation=Status, Timings=Timings, Winner="Python")
-        Case.update(Metadata)
-        if Item.get("Profile") and Expected[0][0] == "return":
-            import cProfile
-            Profiler = cProfile.Profile()
-            Profiler.runcall(Reference, *_Copy(Args))
-            Entries = sorted(Profiler.getstats(), key=lambda Entry: -Entry.totaltime)[:8]
-            Case["Profile"] = [dict(Function=Entry.code.co_name if hasattr(Entry.code, "co_name") else str(Entry.code),
-                                    Calls=Entry.callcount, Total_Seconds=Entry.totaltime, Self_Seconds=Entry.inlinetime) for Entry in Entries]
-        if Expected[0][0] == "raise":
-            Case["Reason"] = "Reference raised " + Expected[0][1].__name__
-        Cases.append(Case)
+    Deadline = Deadline or perf_counter_ns() + int(Item.get("Tuning", {}).get("Budget_Seconds", 30) * 1000000000)
+    Representative = sorted(_Representative_Cases(Item, Deadline), key=lambda Case: (not Case[4]["Holdout"], -Case[1]))
+    Inputs = Representative + [(Key, Size, Shape, Args, {}) for Key, Size, Shape, Args in _Cases(Item)]
+    Cases = [dict(Key=Key, Size=Size, Shape=Shape, Validation={"Python": "inconclusive: case pending within worker budget"},
+                  Timings={}, Winner="Python", **Metadata) for Key, Size, Shape, Args, Metadata in Inputs]
+    if Checkpoint is not None:
+        Checkpoint(Cases)
+    Remaining = len(Representative)
+    for Position, Input in enumerate(Inputs):
+        Key, Size, Shape, Args, Metadata = Input
+        Now = perf_counter_ns()
+        Case_Deadline = Now + max(0, Deadline - Now) // max(1, Remaining) if Metadata.get("Representative") else Deadline
+        Remaining -= bool(Metadata.get("Representative"))
+        try:
+            Case = _Check_Case(Item, Modules, Threads, Gain, Teams, Input, Case_Deadline, Invalid)
+        except (_Probe_Timeout, _Probe_Resource) as Error:
+            Case = dict(Key=Key, Size=Size, Shape=Shape, Validation={"Python": "inconclusive: " + str(Error)},
+                        Timings={}, Winner="Python", **Metadata)
+        Cases[Position] = Case
+        if Checkpoint is not None:
+            Checkpoint(Cases)
     for Case in Cases:
         Valid = {Name: Data for Name, Data in Case["Timings"].items() if Name not in Invalid}
         Case["Winner"] = _Winner(Valid, Gain)
@@ -380,28 +390,41 @@ def _Check(Item, Modules, Threads, Gain, Teams=None):
 def _Run(Request):
     from PyCeler.Selection_Environment import _Pyceler_Environment
     Spec = json.loads(Request.read_text(encoding="utf-8"))
+    Budget = Spec["Item"].get("Tuning", {}).get("Budget_Seconds", 30)
+    Deadline = perf_counter_ns() + int(Budget * 1000000000)
     Directory = Request.parent
     Modules = {}
     Errors = {}
     Threads = 0
     Teams = {}
     Original_Teams = {}
+    Settings = None
     for Name, File in Spec["Modules"].items():
         try:
             Module = _Load(Path(File))
             if Name.startswith("OpenMP"):
+                Current = list(Module._Probe_Settings())
+                if Settings is not None and Current != Settings:
+                    raise ValueError("OpenMP candidates disagree about their live runtime settings")
+                Settings = Current
                 Original_Teams[Name] = Module._Probe_Threads()
                 Teams[Name] = Module._Probe_Threads(int(Name.split("_")[1]) if "_" in Name else 0)
                 Threads = max(Threads, Teams[Name])
             Modules[Name] = Module
         except (ImportError, OSError, ValueError) as Error:
             Errors[Name] = str(Error)
-    Cases = _Check(Spec["Item"], Modules, Threads, Spec["Gain"], Teams)
+    def _Checkpoint(Cases):
+        Environment = dict(Host=_Pyceler_Environment(), NumPy=getattr(sys.modules.get("numpy"), "__version__", None), OpenMP_Settings=Settings)
+        Result = dict(Cases=Cases, Environment=Environment, Threads=Threads, Teams=Teams, Import_Errors=Errors,
+                      Worker_Budget=dict(Seconds=Budget, Scope="Imports, workload factory, isolation, validation, profiling and timing; excludes compilation",
+                                         Process_Limit_Seconds=Budget + 5, Isolation_Byte_Limit=_Isolation_Limit, Minimum_Paired_Samples=3))
+        Temporary = Request.with_suffix(".pending")
+        Temporary.write_text(json.dumps(Result), encoding="utf-8")
+        Temporary.replace(Request.with_suffix(".result"))
+    Cases = _Check(Spec["Item"], Modules, Threads, Spec["Gain"], Teams, Deadline, _Checkpoint)
     if any(Modules[Name]._Probe_Threads() != Count for Name, Count in Original_Teams.items()):
         raise RuntimeError("A candidate changed the caller's OpenMP thread configuration")
-    Environment = dict(Host=_Pyceler_Environment(),
-                       NumPy=getattr(sys.modules.get("numpy"), "__version__", None))
-    (Directory / (Request.stem + ".result")).write_text(json.dumps(dict(Cases=Cases, Environment=Environment, Threads=Threads, Teams=Teams, Import_Errors=Errors)), encoding="utf-8")
+    _Checkpoint(Cases)
 
 if __name__ == "__main__":
     _Run(Path(sys.argv[1]))

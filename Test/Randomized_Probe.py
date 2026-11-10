@@ -16,7 +16,9 @@ def _Cases(Seed):
     Random = random.Random(Seed)
     Dtypes = (np.int8, np.uint8, np.int16, np.uint16, np.int32, np.int64, np.float32, np.float64)
     Families = (("Fused_Maps", 2, ()), ("Local_Values", 2, ()), ("Repeated_Scores", 2, (1,)),
-                ("Invariant_Scale", 1, (2, -3)), ("Versioned_Reads", 2, ()), ("Temporary_Pipeline", 1, (2, 1)))
+                ("Invariant_Scale", 1, (2, -3)), ("Versioned_Reads", 2, ()), ("Temporary_Pipeline", 1, (2, 1)),
+                ("Augmented_Outputs", 2, ()), ("Augmented_Locals", 1, ()), ("Sequential_Updates", 1, ()),
+                ("Independent_Updates", 1, ()))
     for Dtype in Dtypes:
         for Variant in range(12):
             Size = Random.choice((0, 1, 2, 7, 17, 63))

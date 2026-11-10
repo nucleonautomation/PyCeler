@@ -1,0 +1,20 @@
+cdef bint _Pyceler_Dispatch_Enabled = False
+cdef dict _Pyceler_Dispatch_Info = {}
+
+def _Pyceler_Dispatch_Stats(Enabled=None, Reset=False):
+    import builtins as B
+    global _Pyceler_Dispatch_Enabled
+    if Enabled is not None:
+        if B.type(Enabled) is not B.bool:
+            raise B.TypeError("Enabled must be a boolean or None")
+        _Pyceler_Dispatch_Enabled = Enabled
+    if Reset:
+        _Pyceler_Dispatch_Info.clear()
+    return {Stage: B.dict(Details) for Stage, Details in _Pyceler_Dispatch_Info.items()}
+
+cdef void _Pyceler_Dispatch_Event(object Stage, object Reason, object Team=None) except *:
+    if _Pyceler_Dispatch_Enabled:
+        Details = {"Reason": Reason, "Actual_Team": Team}
+        if Stage == "Execution":
+            Details["Native_Entry"] = Reason in ("native_serial", "native_parallel")
+        _Pyceler_Dispatch_Info[Stage] = Details

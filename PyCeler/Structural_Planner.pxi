@@ -106,7 +106,7 @@ cdef object _Structural_Plan(object Function, bint Elide_Temporaries):
     Plan = dict(Kind="structural", Names=Names, All_Names=Names + ((Temporary,) if Temporary else ()), Output=Output,
                 Arrays={Output}, Scalars=set(), Reads=set(), Outputs=set(), Versions={}, Nodes=[], Blocks=[], Loops=[], Arithmetic=False,
                 Start=Body[0].lineno, End=Body[-2].end_lineno, Returns_None=Returns_None, Transformations=[], Dimension_Args={},
-                Temporary=Temporary, Allocation=Allocation, Local_Count=0, Abs=False)
+                Temporary=Temporary, Allocation=Allocation, Local_Count=0, Statement_Count=0, Abs=False)
     Dimensions = None
     try:
         for Outer in Loops:
@@ -149,10 +149,18 @@ cdef object _Structural_Plan(object Function, bint Elide_Temporaries):
                     return None
             Actions, Locals = [], {}
             for Statement in Statements:
-                if not isinstance(Statement, ast.Assign) or len(Statement.targets) != 1:
+                if isinstance(Statement, ast.Assign) and len(Statement.targets) == 1:
+                    Target = Statement.targets[0]
+                    Expression = Statement.value
+                elif isinstance(Statement, ast.AugAssign) and isinstance(Statement.op, (ast.Add, ast.Sub, ast.Mult)):
+                    Target = Statement.target
+                    if isinstance(Target, ast.Name) and Target.id not in Locals:
+                        return None
+                    Expression = ast.BinOp(left=Target, op=Statement.op, right=Statement.value)
+                else:
                     return None
-                Target = Statement.targets[0]
-                Value = _Structural_Expression(Statement.value, Plan, Locals, Indices, Actions)
+                Plan["Statement_Count"] += 1
+                Value = _Structural_Expression(Expression, Plan, Locals, Indices, Actions)
                 if isinstance(Target, ast.Name):
                     if Target.id in set(Names) | set(Counters) | set(Shape_Locals) | {Temporary, "range", "len", "abs"}:
                         return None
@@ -208,7 +216,7 @@ cdef object _Structural_Plan(object Function, bint Elide_Temporaries):
         if any(Plan["Nodes"][Number][0] in ("+", "-", "*", "abs") for Number in Invariant):
             Plan["Transformations"].append("loop_invariants")
         Plan["Invariant"] = tuple(sorted(Invariant))
-        if not Plan["Transformations"] and not Plan["Local_Count"]:
+        if not Plan["Transformations"] and not Plan["Local_Count"] and Plan["Statement_Count"] < 2:
             return None
         return Plan
     except (_Unsupported_Structure, _Unsupported_Map):
@@ -235,5 +243,5 @@ cdef void _Structural_Plans(object Tree, list Findings, dict Edits, bint Paralle
             Finding = Findings[Index]
             Findings[Index] = replace(Finding, Classification="Structural_Numeric_Map",
                 Change="Guarded structural " + ("serial/OpenMP" if Parallel else "serial") + " candidates",
-                Reason="Shared numeric plan: " + ", ".join(Plan["Transformations"] or ["typed_locals"]) +
+                Reason="Shared numeric plan: " + ", ".join(Plan["Transformations"] or ["typed_statements"]) +
                        ". Exact shape, disjoint storage and intermediate integer ranges are checked before writes.")

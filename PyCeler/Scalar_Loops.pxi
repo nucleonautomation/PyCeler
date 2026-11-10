@@ -11,6 +11,10 @@ cdef str _Scalar_Operation(object Operator):
         return "_Pyceler_Subtract"
     if isinstance(Operator, ast.Mult):
         return "_Pyceler_Multiply"
+    if isinstance(Operator, ast.Mod):
+        return "_Pyceler_Modulo"
+    if isinstance(Operator, ast.FloorDiv):
+        return "_Pyceler_Floor_Divide"
     raise _Unsupported_Scalar()
 
 cdef str _Scalar_Expr(object Node, set Bound, dict Plan):
@@ -19,6 +23,8 @@ cdef str _Scalar_Expr(object Node, set Bound, dict Plan):
     if isinstance(Node, ast.Constant) and type(Node.value) is int and 0 <= Node.value <= 2**63 - 1:
         return f"(<_Pyceler_Int>{Node.value})"
     if isinstance(Node, ast.UnaryOp) and isinstance(Node.op, ast.USub):
+        if isinstance(Node.operand, ast.Constant) and type(Node.operand.value) is int and Node.operand.value == 2**63:
+            return "_Pyceler_Min"
         if _Integer(Node.operand, 0):
             return "(<_Pyceler_Int>0)"
         return "_Pyceler_Subtract(0, " + _Scalar_Expr(Node.operand, Bound, Plan) + ")"
@@ -95,12 +101,17 @@ cdef void _Scalar_Block(list Statements, set Bound, dict Plan, str Indent, bint 
         else:
             raise _Unsupported_Scalar()
 
+cdef bint _Scalar_Fresh(object Expr):
+    return (isinstance(Expr, ast.BinOp) and isinstance(Expr.op, (ast.Add, ast.Sub, ast.Mult, ast.FloorDiv))
+            and any(isinstance(Part, ast.Name) for Part in ast.walk(Expr)))
+
 cdef bint _Scalar_Result(object Expr, object Function, tuple Names):
     if isinstance(Expr, ast.BinOp):
-        return any(isinstance(Part, ast.Name) for Part in ast.walk(Expr))
+        return _Scalar_Fresh(Expr)
     if not isinstance(Expr, ast.Name):
         return False
     Uncertain = set(Names)
+    Uncertain.update(Node.target.id for Node in ast.walk(Function) if isinstance(Node, ast.For) and isinstance(Node.target, ast.Name))
     Copies = []
     for Node in ast.walk(Function):
         if isinstance(Node, ast.Assign) and len(Node.targets) == 1 and isinstance(Node.targets[0], ast.Name):
@@ -111,15 +122,23 @@ cdef bint _Scalar_Result(object Expr, object Function, tuple Names):
                 continue
             if isinstance(Value, ast.Constant) and type(Value.value) is int and 0 <= Value.value <= 256:
                 continue
-            if not isinstance(Value, ast.BinOp) or not any(isinstance(Part, ast.Name) for Part in ast.walk(Value)):
+            if not _Scalar_Fresh(Value):
                 Uncertain.add(Target)
+        elif isinstance(Node, ast.AugAssign) and isinstance(Node.target, ast.Name) and isinstance(Node.op, ast.Mod):
+            Uncertain.add(Node.target.id)
     while True:
         Added = {Target for Target, Source in Copies if Source in Uncertain} - Uncertain
         if not Added:
             return Expr.id not in Uncertain
         Uncertain.update(Added)
 
+include "Scalar_Division.pxi"
+include "Scalar_Parallel.pxi"
+
 cdef object _Scalar_Plan(object Function):
+    Division = _Scalar_Division_Plan(Function)
+    if Division is not None:
+        return Division
     if not isinstance(Function, ast.FunctionDef) or Function.decorator_list or getattr(Function, "type_params", ()):
         return None
     Args = Function.args
@@ -133,7 +152,7 @@ cdef object _Scalar_Plan(object Function):
         return None
     if not any(isinstance(Part, (ast.For, ast.While)) for Part in Body) or not _Scalar_Result(Body[-1].value, Function, Names):
         return None
-    Plan = dict(Kind="scalar", Names=Names, Start=Body[0].lineno, Slots={}, Temporaries=[], Lines=[], Loops=[])
+    Plan = dict(Kind="scalar", Names=Names, Start=Body[0].lineno, Slots={}, Temporaries=[], Lines=[], Loops=[], Size_Function=Function)
     for Name in Names:
         _Scalar_Slot(Name, Plan)
     Bound = set(Names)
@@ -141,12 +160,15 @@ cdef object _Scalar_Plan(object Function):
         _Scalar_Block(Body[:-1], Bound, Plan, "    ", False)
         Plan["Lines"].append("    return " + _Scalar_Expr(Body[-1].value, Bound, Plan))
     except _Unsupported_Scalar:
-        return None
+        return _Scalar_Division_Plan(Function)
     if "range" in Plan["Slots"] or not Plan["Loops"]:
         return None
+    Plan["Parallel_Reduction"] = _Scalar_Parallel_Plan(Function, Plan)
     return Plan
 
-cdef str _Scalar_Kernel(dict Plan, int Line):
+cdef str _Scalar_Kernel(dict Plan, int Line, bint Parallel=False):
+    if Plan.get("Division"):
+        return _Scalar_Division_Kernel(Plan, Line)
     Args = [Plan["Slots"][Name] for Name in Plan["Names"]]
     Locals = list(Plan["Slots"].values())[len(Args):] + Plan["Temporaries"]
     Native = f"_Pyceler_Int_Loop_{Line}"
@@ -167,4 +189,5 @@ cdef str _Scalar_Kernel(dict Plan, int Line):
                       f"        return Baseline({Arguments})", f"    N{Var} = {Var}"])
     Lines.extend(["    try:", "        with nogil:", f"            Result = {Native}({', '.join('N' + Var for Var in Args)})",
                   "    except _Pyceler_Overflow:", "        pass", "    else:", "        return Result", f"    return Baseline({Arguments})"])
-    return "\n".join(Lines)
+    Serial = "\n".join(Lines)
+    return _Scalar_Parallel_Kernel(Plan, Line, Serial, Parallel) if Plan.get("Parallel_Reduction") else Serial

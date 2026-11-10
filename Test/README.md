@@ -9,7 +9,32 @@ python -B Compile.py
 
 On Linux AMD64 or ARM64, run `python3 -B Compile.py` followed by `python3 -B Test/Run.py`. The build writes the complete compiled library to `Build/Lib/PyCeler`; checkout imports use that package rather than an in-place engine binary. Install Cython, setuptools and NumPy in the test interpreter and provide the platform compiler and OpenMP runtime. The suite builds and imports real native modules in disposable directories under `Test_Run/`.
 
+Use `python -B Test/Run.py --no-wheels` or `.\Test\Run.ps1 --no-wheels` when wheel creation is deferred. The report names the two excluded wheel-producing tests. All other tests, including the compiler ABI-tag check, remain enabled.
+
 ## Where to find results
+
+Scalar arithmetic, extracted progress loops, diagnostics and workload sizing have focused regression coverage:
+
+```powershell
+python -B Compile.py
+python -B -m unittest Test.Test_Scalar_Arithmetic Test.Test_Scalar_Regions Test.Test_Diagnostics Test.Test_Scalar_Sizing -v
+```
+
+The scalar tests compare exact values, types, float bit patterns, integer boundaries, negative remainders and division errors. Region tests exercise module and function scopes, implicit `None`, progress ordering, frozen clocks, empty loops, callback mutations, overflow continuation, shadowed builtins, object identity and partial module globals on exceptions. Selection must validate isolated numeric spans without executing module setup or progress callbacks.
+
+The extended scalar/OpenMP and cache checks are:
+
+```powershell
+python -B -m unittest Test.Test_Parallel_Reductions Test.Test_Scalar_Strides Test.Test_Structural Test.Test_Optimization_Selection -v
+```
+
+`Test_Parallel_Reductions.py` verifies real two-worker execution, exact signed modulo/floor results, every-expression and partial-sum overflow guards, zero divisors, empty loops, bigint fallback, background-thread serial execution, and tuned candidate validation. `Scalar_Parallel_Proof_Probe.py` independently enumerates randomized interval expressions and 1,500 complete reduction proofs, including shuffled accumulation order. Its private proof wrappers exist only in the generated test extension.
+
+`Test_Scalar_Strides.py` compares 5,670 signed start/stop/step/period combinations with a separate iteration oracle, then checks native function spans and original Python module loops, callback mutations, break/continue, exceptions and range shadowing. Descending selection probes must use iteration counts and reachable callback intervals.
+
+`python -B Test/Benchmark_Parallel_Reductions.py` builds Python-reference, serial and OpenMP variants before timing. It validates exact results, uses two warmups and seven interleaved complete-call samples by default, records proof-based serial entry and real two-worker entry, compares OpenMP with the same optimized serial arithmetic, and checks the final measured extension against each recorded dispatch decision. Results are saved to `Test_Run/Parallel_Reductions_*/Results.json`. Use `--iterations 100000 --samples 3` for a smaller run. Run benchmarks sequentially without concurrent native builds or tests.
+
+`python -B Test/Benchmark_Scalar_Regions.py` builds and measures the three reported arithmetic variants (`%`, `/`, `*`) at 100 million iterations in module and function scope. It verifies final results and all progress totals against Python and writes complete outputs, elapsed times and ratios under `Test_Run/Scalar_Benchmark_*/Results.json`. Use `--iterations 1000000` for a smaller smoke benchmark. Run timing commands sequentially without concurrent builds or tests; the oversized multiplication case can legitimately retain Python bigint execution.
 
 The runner prints `Report:` followed by the absolute path to `Test_Run/Run_<id>/Results.txt` before the first test. At the end it prints the contents of that file, including the platform, Python version, each test outcome, failure tracebacks when present, and the summary. A successful run exits with code 0. A failed or empty suite exits with a nonzero code. Test workspaces use bounded retries for transient Windows locks on recently loaded native images; persistent cleanup errors still fail the run.
 
@@ -54,15 +79,29 @@ Add cases in `Test_*.py` files using `unittest.TestCase` and `test_` methods. Th
 
 `Test_Optimization_Selection.py` covers representative factories, holdout dispatch, alias-preserving input copies, warnings, signed zero, cache integrity and compatibility changes. Its public conversion case verifies holdouts, a cache miss followed by a hit, no repeated probe builds, and byte-identical generated source. `Representative_Workloads.py` supplies input factories independently of chat or agent state.
 
-`Test_Package_Build.py`, `Test_Environment_Checker.py`, and `Test_Source_Bootstrap.py` cover the compiled-only distribution layout, resource embedding, interpreter-target checks, diagnostics and checkout import routing. Package publication tests import the builder from root `Compile.py` and use a mocked backend. `Test_Distribution.py` copies the built native modules and initializer into an isolated directory, then runs Analyze, Convert and measured Compile without helper sources or templates. GitHub Actions defines Windows x64, Linux AMD64 and Linux ARM64 jobs for CPython 3.11 and 3.14.
+`Test_Package_Build.py`, `Test_Environment_Checker.py`, and `Test_Source_Bootstrap.py` cover the compiled-only distribution layout, resource embedding, interpreter-target checks, diagnostics and checkout import routing. Package publication tests import the builder from root `Compile.py` and use a mocked backend. `Test_Distribution.py` copies the built native modules and initializer into an isolated directory, then runs Analyze, Convert and measured Compile without helper sources or templates. The maintained `.github/workflows/Native_Regression.yml` covers native Windows x64, Linux AMD64 and Linux ARM64 on CPython 3.11 and 3.14, including the same stable-ABI artifact on the other interpreter. These jobs require an actual CI run; local Windows checks do not establish their results.
 
-The maintained suite contains **85 optimizer tests**, all of which passed in the latest full run on 2026-11-09. That run used AMD64 CPython 3.14.8 on Windows 11 ARM64, MSVC 14.44, Cython 3.3.0 and NumPy 2.5.4. The one-time installer tests have been removed permanently and are outside this project's verification scope. No tests were rerun for that removal. Linux native execution awaits a host as requested. Exact commands and historical result paths are recorded in `Session.md`.
+The maintained suite contains **146 tests**. On 2026-11-10, the 0.2.0 Windows build passed **all 144 tests enabled by `--no-wheels` in 613.262 seconds**, with no failures or skips. The report explicitly lists the two excluded packaging tests. This run used AMD64 CPython 3.14.8 on Windows 11 build 26100, Cython 3.3.0 and MSVC. Post-run verification confirmed the version, source provenance and all 15 native module hashes. Results are in `Test_Run/Run_1apdn_7d/Results.txt` and `Test_Run/Verification_020/Integrity.json`. Linux and CPython 3.11 runtime qualification of this build remain open. Earlier audit and ABI-floor results are recorded separately in `Session.md`.
+
+The final fair reduction benchmark used two warmups and seven interleaved complete-call samples. At two million iterations, modulo medians were 767.4053 ms Python, 13.6751 ms proof-based serial and 7.6757 ms two-worker OpenMP: 1.78x over serial. Exact results, real teams and all seven selected dispatch decisions were checked. These are host-specific measurements, with compilation excluded.
 
 For a source-only check, run `python -B Test/Check_Syntax.py`. It parses maintained Python files and translates every distribution module into disposable C sources under `Test_Run/Cython_Review_*/`, including embedded runtime resources. It does not invoke a native compiler, load the generated engine, run behavioral tests or benchmark code. `Results.json` records the platform, versions and translation diagnostics.
 
+## Audit regression coverage
+
+`Test_Observable_Semantics.py` reproduces modulo/input/loop-index identity, exact unsupported-function exceptions, returning signal handlers that mutate module globals, and cancellation with visible partial state. Module loops remain in CPython; function-local spans still run natively.
+
+`Test_Generated_Scalar_Programs.py` generates 54 programs from arithmetic, ordered-loop, identity and callback forms, then compares 10,422 cases per serial/OpenMP binary. This complements fixed-fixture input randomization. `Test_Selection_Safety.py` checks nested identity graphs, cycles, view backing storage, byte limits, budget ordering and live OpenMP setting changes. Cases include inconclusive outcomes instead of silently promoting timed-out workloads.
+
+`Test_Build_Identity.py` rejects stale sources/dependencies, missing or modified artifacts and invalid inventories. `Test_Wheel.py` verifies deterministic wheel metadata/RECORD and exercises a pip-installed wheel in isolation, including actual OpenMP execution. `Test/Run.py` verifies freshness before discovery and records engine path, build ID and source fingerprint.
+
+Run `python -B Compile.py wheel --library Build/Lib` to package the verified local build and `python -B Test/Verify_Wheel.py WHEEL_PATH` to preserve an installed-wheel smoke report. Run package builds and native tests sequentially on Windows to avoid loaded-library locks.
+
 ## Optimizer follow-up checks
 
-`Test_Structural.py` runs `Randomized_Probe.py` for both serial and OpenMP builds: 576 deterministic cases each, covering eight dtypes and six structural families. Comparisons include result types, bytes, signed zero, warnings, exceptions, mutations, overlapping views, strides, read-only arrays, shape errors and nonnative byte order. Eligible integral-valued float maps must actually enter the native kernel. Failed cases save their seed, case index and a replay command under `Test_Run/Randomized_Failures/`.
+`Test_Structural.py` runs `Randomized_Probe.py` for both serial and OpenMP builds: 960 deterministic cases each, covering eight dtypes and ten structural families, including augmented local/indexed arithmetic and multiple independent updates. Comparisons include result types, bytes, signed zero, warnings, exceptions, mutations, overlapping views, strides, read-only arrays, shape errors and nonnative byte order. Eligible integral-valued float maps must actually enter the native kernel. Failed cases save their seed, case index and a replay command under `Test_Run/Randomized_Failures/`. An untransformed uninitialized-local case requires the exact CPython exception type, message and unchanged state. Converted Python source runs through CPython glue; direct native Cython inputs retain their separate semantics.
+
+Selection-cache tests require corrupted entries to be repaired, valid entries to remain reusable, failed publication to restore the prior entry and entries outside the cache root to be rejected.
 
 `Test_Native_Optimization.py` compares unchanged and optimized typed Cython fills, checks special float values and invalid arguments, rejects unsafe source context, and compiles standalone `.pxi` input. A deliberately unattainable speed threshold must preserve the original source exactly. `Test_Numeric_Extensions.py` uses independent partition-based median and scalar channel-distance oracles, including empty/thin arrays and borders, and requires native entry for eligible cases. Temporary-list elision remains explicit.
 
@@ -76,7 +115,7 @@ python -B -m unittest Test.Test_Structural Test.Test_Native_Optimization Test.Te
 
 ## Prepared Linux checks
 
-Linux execution is deferred until a native AMD64 or ARM64 host is available. `.github/workflows/Native_Regression.yml` prepares Windows x64, Linux AMD64 and Linux ARM64 jobs with CPython 3.11 and 3.14. Each job builds the package, runs the complete suite, probes serial/OpenMP support and imports the same stable-ABI fixture on both Python versions. Upload the project to an authorized GitHub repository and run the workflow, or execute these commands on each native Linux host:
+Linux execution requires a native AMD64 or ARM64 host. `.github/workflows/Native_Regression.yml` builds the package, runs the complete suite and installed-wheel pipeline, and imports the same stable-ABI fixture on both Python versions. The presence of the workflow is not a successful platform qualification. The following commands remain available for manual execution on each native Linux host:
 
 ```sh
 python3 -m pip install "Cython>=3.1" setuptools numpy

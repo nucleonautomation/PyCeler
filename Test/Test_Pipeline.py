@@ -3,6 +3,7 @@ import shutil
 import subprocess
 import sys
 from Test.Workspace import Temporary_Directory
+from Test.Generated_Source import _Python_Source
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -42,7 +43,7 @@ class Native_Pipeline(unittest.TestCase):
         self.assertIn("cdef Py_ssize_t Size", Serial_Text)
         self.assertNotIn("prange", Serial_Text)
         self.assertIn("prange", Parallel_Text)
-        self.assertIn("Values[Index] += Values[Index - 1]", Parallel_Text)
+        self.assertIn("Values[Index] += Values[Index - 1]", _Python_Source(Parallel_Text))
         self.assertEqual(self._Source.read_bytes(), Baseline)
 
     def test_Native_Kernels_Against_Python(self):
@@ -64,7 +65,8 @@ class Native_Pipeline(unittest.TestCase):
                 Output = self._Folder / str(Link)
                 Results = Compile(Package, Output, Link=Link)
                 self.assertEqual(len(Results), Count)
-                self.assertEqual(len(list(Output.rglob("*.*"))), Count)
+                self.assertEqual(len([File for File in Output.rglob("*.*") if File.suffix in (".pyd", ".so")]), Count)
+                self.assertEqual(len(list(Output.rglob("*.selection.json"))), 3)
                 self._Probe(Output, "from Example import Read, Example\nassert Read() == 4\nExample.Value = 8\nassert Read() == 8")
         self.assertEqual(sorted(Path(Item).suffix for Item in Package.iterdir()), [".py"] * 3)
 
@@ -105,13 +107,14 @@ class Native_Pipeline(unittest.TestCase):
         Source = self._Root / "Test" / "Loop_Workloads.py"
         Findings = Analyze(Source, OpenMP=True)
         Changes = {Item.Function: Item.Change for Item in reversed(Findings)}
-        for Name in ("Count_Pairs", "First_Fibonacci_At_Least", "Count_Triangle", "Range_Snapshot", "Checked_Product"):
+        for Name in ("Count_Pairs", "First_Fibonacci_At_Least", "Count_Triangle", "Range_Snapshot"):
             self.assertEqual(Changes[Name], "Guarded serial integer loop")
+        self.assertEqual(Changes["Checked_Product"], "Guarded exact OpenMP integer reduction with serial fallback")
         self.assertEqual(Changes["Threshold_Volume"], "Guarded 3D OpenMP element-wise kernel")
         self.assertEqual(Changes["Fill_Batch"], "Guarded 4D OpenMP element-wise kernel")
         self.assertEqual(Changes["Skip_Elements"], "Keep original loop")
         self.assertEqual(Changes["With_Callback"], "Keep original loop")
-        self.assertEqual(Changes["Return_Argument"], "Keep original loop")
+        self.assertEqual(Changes["Return_Argument"], "Extract guarded serial numeric region")
         for Parallel in (False, True):
             with self.subTest(OpenMP=Parallel):
                 Binary = Compile(Source, self._Folder / str(Parallel), OpenMP=Parallel, Select=False)

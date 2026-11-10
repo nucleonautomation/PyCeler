@@ -1,0 +1,93 @@
+cdef unsigned long long _Pyceler_Reduction_Calls = 0
+cdef unsigned long long _Pyceler_Reduction_Serial_Calls = 0
+cdef int _Pyceler_Reduction_Last_Team = 0
+cdef object _Pyceler_Reduction_Last_Mode = None
+cdef object _Pyceler_Reduction_Fallback_Reason = None
+
+def _Pyceler_Parallel_Stats():
+    return _Pyceler_Reduction_Calls, _Pyceler_Reduction_Last_Team
+
+def _Pyceler_Reduction_Stats():
+    return dict(Serial_Calls=_Pyceler_Reduction_Serial_Calls, Parallel_Calls=_Pyceler_Reduction_Calls,
+                Last_Team=_Pyceler_Reduction_Last_Team, Last_Mode=_Pyceler_Reduction_Last_Mode,
+                Fallback_Reason=_Pyceler_Reduction_Fallback_Reason)
+
+cdef object _Pyceler_Reduction_Interval(tuple Node, tuple Values):
+    import builtins as B
+    Kind = Node[0]
+    if Kind == "arg":
+        return Values[Node[1]]
+    if Kind == "constant":
+        Result = Node[1], Node[1]
+    elif Kind == "negative" and Node[1] == ("constant", 9223372036854775808):
+        Result = -9223372036854775808, -9223372036854775808
+    else:
+        Left = _Pyceler_Reduction_Interval(Node[1], Values)
+        if Left is None:
+            return None
+        if Kind == "negative":
+            Result = -Left[1], -Left[0]
+        else:
+            Right = _Pyceler_Reduction_Interval(Node[2], Values)
+            if Right is None:
+                return None
+            if Kind == "add":
+                Result = Left[0] + Right[0], Left[1] + Right[1]
+            elif Kind == "subtract":
+                Result = Left[0] - Right[1], Left[1] - Right[0]
+            elif Kind == "multiply":
+                Products = [A * C for A in Left for C in Right]
+                Result = B.min(Products), B.max(Products)
+            elif Right[0] <= 0 <= Right[1]:
+                return None
+            elif Kind == "modulo":
+                Result = (0, Right[1] - 1) if Right[0] > 0 else (Right[0] + 1, 0)
+            elif Kind == "floor":
+                Quotients = [A // C for A in Left for C in Right]
+                Result = B.min(Quotients), B.max(Quotients)
+            else:
+                return None
+    return Result if -9223372036854775808 <= Result[0] <= Result[1] <= 9223372036854775807 else None
+
+cdef object _Pyceler_Reduction_Allowed(tuple Args, dict Plan):
+    import builtins as B
+    if B.any(B.type(Value) is not B.int or not -9223372036854775808 <= Value <= 9223372036854775807 for Value in Args):
+        return None
+    Values = B.tuple((Value, Value) for Value in Args)
+    Begin = _Pyceler_Reduction_Interval(Plan["Begin"], Values)
+    Stop = _Pyceler_Reduction_Interval(Plan["Stop"], Values)
+    if Begin is None or Stop is None:
+        return None
+    Begin, Stop, Step = Begin[0], Stop[0], Plan["Step"]
+    Count = B.max(0, (Stop - Begin + Step - 1) // Step) if Step > 0 else B.max(0, (Begin - Stop - Step - 1) // -Step)
+    if not Count:
+        return Begin, 0
+    if Count > 9223372036854775807 or B.abs((Count - 1) * Step) > 9223372036854775807:
+        return None
+    Last = Begin + (Count - 1) * Step
+    Term = _Pyceler_Reduction_Interval(Plan["Term"], (*Values, (B.min(Begin, Last), B.max(Begin, Last))))
+    if Term is None:
+        return None
+    Low, High = Count * B.min(0, Term[0]), Count * B.max(0, Term[1])
+    Initial = Plan["Initial"]
+    if Low < -9223372036854775808 or High > 9223372036854775807 or Initial + Low < -9223372036854775808 or Initial + High > 9223372036854775807:
+        return None
+    return Begin, Count
+
+@_Pyceler_Cdivision(True)
+cdef inline _Pyceler_Int _Pyceler_Reduction_Modulo(_Pyceler_Int Left, _Pyceler_Int Right) noexcept nogil:
+    cdef _Pyceler_Int Remainder
+    if Left == _Pyceler_Min and Right == -1:
+        return 0
+    Remainder = Left % Right
+    if Remainder != 0 and (Remainder < 0) != (Right < 0):
+        Remainder += Right
+    return Remainder
+
+@_Pyceler_Cdivision(True)
+cdef inline _Pyceler_Int _Pyceler_Reduction_Floor(_Pyceler_Int Left, _Pyceler_Int Right) noexcept nogil:
+    cdef _Pyceler_Int Quotient = Left / Right
+    cdef _Pyceler_Int Remainder = Left % Right
+    if Remainder != 0 and (Remainder < 0) != (Right < 0):
+        Quotient -= 1
+    return Quotient

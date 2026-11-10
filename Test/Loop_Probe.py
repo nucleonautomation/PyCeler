@@ -50,3 +50,10 @@ _Invoke(Native.Threshold_Volume, (Storage[:-1].reshape(2, 3, 4), Storage[1:].res
 Numpy.testing.assert_array_equal(Storage, Expected)
 Native.range = lambda Count: [4]
 assert _Invoke(Native.Count_Pairs, (2, 3), True) == 15
+del Native.range
+for Count in (0, 1, 5):
+    for Value in (1000, 2**80, 2.5):
+        Expected = Original.Return_Argument(Count, Value)
+        Actual = Native.Return_Argument(Count, Value)
+        assert Actual == Expected and type(Actual) is type(Expected), (Count, Value, Actual, Expected)
+        assert (Actual is Value) == (Expected is Value), (Count, Value, "return identity")

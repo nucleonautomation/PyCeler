@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 from Test.Workspace import Temporary_Directory
+from Test.Generated_Source import _Python_Source
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -46,6 +47,17 @@ class Structural_Optimization(unittest.TestCase):
         self.assertIn("_Optimized", Text)
         self.assertEqual(self._Source.read_bytes(), Original)
 
+    def test_Augmented_Independent_Statements_Are_Parallel_Eligible(self):
+        Findings = Analyze(self._Source, OpenMP=True)
+        Groups = {Item.Function: Item for Item in Findings}
+        for Name in ("Augmented_Outputs", "Augmented_Locals", "Sequential_Updates", "Independent_Updates"):
+            self.assertEqual(Groups[Name].Classification, "Structural_Numeric_Map", Name)
+            self.assertIn("OpenMP", Groups[Name].Change, Name)
+        for Name in ("Unsafe_Local_Reduction", "Unsafe_Index_Update", "Uninitialized_Local"):
+            self.assertNotEqual(Groups[Name].Classification, "Structural_Numeric_Map", Name)
+        Text = Convert(self._Source, self._Folder / "Augmented", Select=False, OpenMP=True).read_text(encoding="utf-8")
+        self.assertIn("_Pyceler_Prange(Size, schedule='static', nogil=True)", Text)
+
     def test_Native_Structures_And_Fallbacks(self):
         for Parallel in (False, True):
             Binary = Compile(self._Source, self._Folder / str(Parallel), Select=False, OpenMP=Parallel, Elide_Temporaries=True)
@@ -82,4 +94,4 @@ class Structural_Optimization(unittest.TestCase):
         Source = self._Folder / "Shared_Doc.py"
         Source.write_text('def Process(Input, Output):\n    "Preserved documentation"; Height, Width = Output.shape\n    for X in range(Width):\n        for Y in range(Height):\n            Output[Y, X] = Input[Y, X] * 2\n    return Output\n', encoding="utf-8")
         Text = Convert(Source, self._Folder / "Docs", Select=False).read_text(encoding="utf-8")
-        self.assertIn('"Preserved documentation"; Height, Width', Text)
+        self.assertIn('"Preserved documentation"; Height, Width', _Python_Source(Text))

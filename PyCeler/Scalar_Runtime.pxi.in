@@ -32,3 +32,65 @@ cdef inline _Pyceler_Int _Pyceler_Multiply(_Pyceler_Int Left, _Pyceler_Int Right
         with gil:
             raise _Pyceler_Overflow()
     return Left * Right
+
+@_Pyceler_Cdivision(True)
+cdef inline _Pyceler_Int _Pyceler_Modulo(_Pyceler_Int Left, _Pyceler_Int Right) except? -1 nogil:
+    cdef _Pyceler_Int Remainder
+    if Right == 0:
+        with gil:
+            return (<object>Left) % (<object>Right)
+    if Left == _Pyceler_Min and Right == -1:
+        return 0
+    Remainder = Left % Right
+    if Remainder != 0 and (Remainder < 0) != (Right < 0):
+        Remainder += Right
+    return Remainder
+
+@_Pyceler_Cdivision(True)
+cdef inline _Pyceler_Int _Pyceler_Floor_Divide(_Pyceler_Int Left, _Pyceler_Int Right) except? -1 nogil:
+    cdef _Pyceler_Int Quotient, Remainder
+    if Right == 0:
+        with gil:
+            return (<object>Left) // (<object>Right)
+    if Left == _Pyceler_Min and Right == -1:
+        with gil:
+            raise _Pyceler_Overflow()
+    Quotient = Left / Right
+    Remainder = Left % Right
+    if Remainder != 0 and (Remainder < 0) != (Right < 0):
+        Quotient -= 1
+    return Quotient
+
+cdef extern from "fenv.h":
+    int _Pyceler_Scalar_Nearest "FE_TONEAREST"
+    int _Pyceler_Scalar_Rounding "fegetround"() noexcept nogil
+
+@_Pyceler_Cdivision(True)
+cdef inline double _Pyceler_True_Divide(_Pyceler_Int Left, _Pyceler_Int Right) except? -1 nogil:
+    cdef _Pyceler_Int Exact_Limit = 9007199254740992
+    if Right == 0:
+        with gil:
+            return (<object>Left) / (<object>Right)
+    if -Exact_Limit <= Left <= Exact_Limit and -Exact_Limit <= Right <= Exact_Limit:
+        return <double>Left / <double>Right
+    with gil:
+        return (<object>Left) / (<object>Right)
+
+cdef inline double _Pyceler_Float_Add(double Left, double Right) noexcept nogil:
+    return Left + Right
+
+cdef inline double _Pyceler_Float_Subtract(double Left, double Right) noexcept nogil:
+    return Left - Right
+
+cdef inline double _Pyceler_Float_Multiply(double Left, double Right) noexcept nogil:
+    return Left * Right
+
+@_Pyceler_Cdivision(True)
+cdef inline double _Pyceler_Float_Divide(double Left, double Right) except? -1 nogil:
+    if Right == 0:
+        with gil:
+            return (<object>Left) / (<object>Right)
+    return Left / Right
+
+cdef inline double _Pyceler_Float_Negate(double Value) noexcept nogil:
+    return -Value

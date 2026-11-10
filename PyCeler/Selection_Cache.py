@@ -112,7 +112,10 @@ def _Cache_Read(Context):
         return None
     Root, Key, Manifest = Context
     try:
-        Record = json.loads((Root / Key / "Result.json").read_text(encoding="utf-8"))
+        Directory = Root / Key
+        if Directory.is_symlink() or Directory.resolve().parent != Root.resolve():
+            return None
+        Record = json.loads((Directory / "Result.json").read_text(encoding="utf-8"))
         if Record.get("Manifest") != Manifest:
             return None
         Result = Record["Result"]
@@ -145,13 +148,16 @@ def _Cache_Write(Context, Choices, Environment, Report, Folder):
         Files = [Manifest["Source"], *Manifest["Dependencies"], *[[str(Path(Manifest["Package"]) / Name), Digest] for Name, Digest in Manifest["Engine"]]]
         if any(not Path(Name).is_file() or _Digest(Path(Name)) != Digest for Name, Digest in Files):
             return
+    Directory = Root / Key
+    if Directory.is_symlink() or Directory.resolve().parent != Root.resolve():
+        raise OSError("Cache entry is not a direct local child of the cache directory")
     Lock = Root / (Key + ".lock")
     try:
         Lock.mkdir()
     except FileExistsError:
         return
     try:
-        if (Root / Key).exists():
+        if _Cache_Read(Context) is not None:
             return
         with tempfile.TemporaryDirectory(prefix="Pending_", dir=Root) as Temporary:
             Pending = Path(Temporary) / Key
@@ -167,6 +173,14 @@ def _Cache_Write(Context, Choices, Environment, Report, Folder):
             Result = json.loads(json.dumps(dict(Choices=Choices, Environment=Environment, Report=Report)))
             Digest = hashlib.sha256(json.dumps(Result, sort_keys=True).encode("utf-8")).hexdigest()
             (Pending / "Result.json").write_text(json.dumps(dict(Manifest=Manifest, Artifacts=Artifacts, Result=Result, Digest=Digest), indent=2), encoding="utf-8")
-            os.replace(Pending, Root / Key)
+            Previous = Path(Temporary) / "Previous"
+            if Directory.exists():
+                os.replace(Directory, Previous)
+            try:
+                os.replace(Pending, Directory)
+            except OSError:
+                if Previous.exists():
+                    os.replace(Previous, Directory)
+                raise
     finally:
         Lock.rmdir()

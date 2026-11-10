@@ -1,7 +1,10 @@
 import argparse
 import ast
+import base64
+import csv
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import platform
@@ -9,10 +12,18 @@ import re
 import shutil
 import sys
 import sysconfig
+import tempfile
+import zipfile
 from pathlib import Path
 
 def _Backend(Root):
     Spec = importlib.util.spec_from_file_location("Native_Build", Root / "PyCeler" / "Native_Build.py")
+    Module = importlib.util.module_from_spec(Spec)
+    Spec.loader.exec_module(Module)
+    return Module
+
+def _Identity(Root):
+    Spec = importlib.util.spec_from_file_location("_PyCeler_Build_Identity", Root / "PyCeler" / "Build_Identity.py")
     Module = importlib.util.module_from_spec(Spec)
     Spec.loader.exec_module(Module)
     return Module
@@ -41,7 +52,7 @@ def _Stage_Package(Root, Stage):
     Paths.append(Resource)
     return Paths
 
-def _Package_Init(Package):
+def _Package_Init(Package, Build_Id=None, Source_Fingerprint=None):
     Tree = ast.parse((Package / "__init__.py").read_text(encoding="utf-8"))
     Versions = [Node.value.value for Node in Tree.body if isinstance(Node, ast.Assign) and
                 any(isinstance(Target, ast.Name) and Target.id == "__version__" for Target in Node.targets) and
@@ -49,7 +60,8 @@ def _Package_Init(Package):
     if len(Versions) != 1:
         raise ValueError("The source package must define one literal __version__")
     return ("from .Loop_Detector import Loop_Finding\nfrom .Engine import Analyze, Convert, Compile\n\n"
-            "__version__ = " + repr(Versions[0]) + "\n__all__ = ['Analyze', 'Convert', 'Compile', 'Loop_Finding']\n")
+            "__version__ = " + repr(Versions[0]) + "\n__build_id__ = " + repr(Build_Id) + "\n__source_fingerprint__ = " + repr(Source_Fingerprint) +
+            "\n__all__ = ['Analyze', 'Convert', 'Compile', 'Loop_Finding']\n")
 
 def _Target(Target):
     System = platform.system().lower()
@@ -137,6 +149,8 @@ def Build_Package(Output_Directory=None, *, Mode="abi", Python_Version=None, Ope
     _Existing_Files(Destination)
     _Previous_Manifest(Output)
     Backend = _Backend(Root)
+    Identity = _Identity(Root)
+    State = Identity._Source_State(Root)
     with Backend._Workspace() as Stage:
         Paths = _Stage_Package(Root, Stage)
         Built = Stage / "Distribution"
@@ -145,7 +159,10 @@ def Build_Package(Output_Directory=None, *, Mode="abi", Python_Version=None, Ope
         Environment = json.loads(Environment_Path.read_text(encoding="utf-8")) if Environment_Path.is_file() else {}
         if Environment.get("Pointer_Bits", 64) != 64:
             raise ValueError("The selected build interpreter must be 64-bit for the requested package target")
-        (Built / "PyCeler" / "__init__.py").write_text(_Package_Init(Source), encoding="utf-8")
+        if State != Identity._Source_State(Root):
+            raise RuntimeError("PyCeler source or build dependencies changed during compilation; rebuild before publishing the package")
+        Build_Id = Identity._Digest(dict(State=State, Target=Host_Target, Mode=Mode, Python_Version=Python_Version, OpenMP=OpenMP, Environment=Environment))
+        (Built / "PyCeler" / "__init__.py").write_text(_Package_Init(Source, Build_Id, State["Source_Fingerprint"]), encoding="utf-8")
         Products = [File.relative_to(Built) for File in sorted((Built / "PyCeler").iterdir()) if File.is_file()]
         Suffix = ".pyd" if os.name == "nt" else ".so"
         Expected = {Relative.with_suffix(Suffix) for Relative in Paths} | {Path("PyCeler/__init__.py")}
@@ -153,6 +170,7 @@ def Build_Package(Output_Directory=None, *, Mode="abi", Python_Version=None, Ope
             raise RuntimeError("Distribution contains unexpected or missing files")
         Report = dict(Format="PyCeler native package 1", Mode=Mode, Python_Version=Python_Version or ("3.11" if Mode in ("abi", "auto") else None),
                       Target=Host_Target, Platform=platform.platform(), Machine=platform.machine(),
+                      Build_Id=Build_Id, **State,
                       Build_Environment=Environment,
                       Files={Relative.as_posix(): hashlib.sha256((Built / Relative).read_bytes()).hexdigest() for Relative in Products},
                       Embedded_Resources=[File.name for File in sorted(Source.glob("*.pxi.in"))] + ["Selection_Environment.py"])
@@ -162,15 +180,93 @@ def Build_Package(Output_Directory=None, *, Mode="abi", Python_Version=None, Ope
         _Publish_Package(Backend, Built, Output, Products, Report)
     return Destination
 
+def Build_Wheel(Output_Directory=None, *, Library_Directory=None, Mode="abi", Python_Version=None, OpenMP=None, Target="native"):
+    Root = Path(__file__).resolve().parent
+    if Library_Directory is None:
+        Package = Build_Package(Mode=Mode, Python_Version=Python_Version, OpenMP=OpenMP, Target=Target)
+    else:
+        Library = Path(Library_Directory).resolve()
+        Package = Library if Library.name.casefold() == "pyceler" else Library / "PyCeler"
+    Report = _Identity(Root)._Verify_Development(Root, Package)
+    Host = _Target(Target)
+    if Report["Target"] != Host:
+        raise ValueError("Wheel packaging requires a verified package built for this native host")
+    Environment = Report["Build_Environment"]
+    Stable = Environment.get("Mode", Report["Mode"]) == "abi"
+    Version = ast.literal_eval(next(Node.value for Node in ast.parse((Package / "__init__.py").read_text(encoding="utf-8")).body
+                                   if isinstance(Node, ast.Assign) and any(isinstance(Target, ast.Name) and Target.id == "__version__" for Target in Node.targets)))
+    Python_Tag = "cp" + (Environment.get("ABI_Floor") or Report.get("Python_Version") or f"{sys.version_info.major}.{sys.version_info.minor}").replace(".", "")
+    if not Stable:
+        Python_Tag = "cp" + Environment.get("Python", platform.python_version()).split()[0].rsplit(".", 1)[0].replace(".", "")
+    ABI_Tag = "abi3" if Stable else Environment.get("ABI_Tag")
+    if not Stable and (not isinstance(ABI_Tag, str) or not re.fullmatch(re.escape(Python_Tag) + r"t?d?", ABI_Tag)):
+        raise ValueError("The package does not record its exact interpreter ABI; rebuild before creating a regular-mode wheel")
+    Platform_Tag = {"windows-x64": "win_amd64", "linux-x64": "linux_x86_64", "linux-arm64": "linux_aarch64"}[Host]
+    Tag = f"{Python_Tag}-{ABI_Tag}-{Platform_Tag}"
+    Metadata_Directory = f"pyceler-{Version}.dist-info"
+    Contents = {Name: (Package.parent / Name).read_bytes() for Name in sorted(Report["Files"])}
+    Contents[Metadata_Directory + "/METADATA"] = (f"Metadata-Version: 2.4\nName: PyCeler\nVersion: {Version}\nSummary: Measured native specialization of Python numeric loops\n"
+                                                    "Requires-Python: >=3.11\nLicense-Expression: MIT\nLicense-File: LICENSE.md\n"
+                                                    "Requires-Dist: Cython>=3.1\nRequires-Dist: setuptools\nRequires-Dist: numpy; extra == 'test'\nProvides-Extra: test\n").encode("utf-8")
+    Contents[Metadata_Directory + "/WHEEL"] = (f"Wheel-Version: 1.0\nGenerator: PyCeler {Version}\nRoot-Is-Purelib: false\nTag: {Tag}\n").encode("utf-8")
+    Contents[Metadata_Directory + "/licenses/LICENSE.md"] = (Root / "LICENSE.md").read_bytes()
+    Contents[Metadata_Directory + "/PyCeler.manifest.json"] = json.dumps(Report, indent=2, sort_keys=True).encode("utf-8")
+    Record = io.StringIO(newline="")
+    Writer = csv.writer(Record, lineterminator="\n")
+    for Name, Content in sorted(Contents.items()):
+        Writer.writerow((Name, "sha256=" + base64.urlsafe_b64encode(hashlib.sha256(Content).digest()).rstrip(b"=").decode("ascii"), len(Content)))
+    Writer.writerow((Metadata_Directory + "/RECORD", "", ""))
+    Contents[Metadata_Directory + "/RECORD"] = Record.getvalue().encode("utf-8")
+    Output = Path(Output_Directory).resolve() if Output_Directory is not None else Root / "Build" / "Wheels"
+    if Output == Root / "PyCeler" or Output.is_relative_to(Root / "PyCeler"):
+        raise ValueError("Choose a wheel output separate from the development source tree")
+    Output.mkdir(parents=True, exist_ok=True)
+    Wheel = Output / f"pyceler-{Version}-{Tag}.whl"
+    with tempfile.TemporaryDirectory(prefix="Wheel_", dir=Output) as Folder:
+        Pending = Path(Folder) / Wheel.name
+        with zipfile.ZipFile(Pending, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as Archive:
+            for Name, Content in sorted(Contents.items()):
+                Info = zipfile.ZipInfo(Name, date_time=(1980, 1, 1, 0, 0, 0))
+                Info.create_system = 3
+                Info.external_attr = 0o100644 << 16
+                Info.compress_type = zipfile.ZIP_DEFLATED
+                Archive.writestr(Info, Content, compresslevel=9)
+        os.replace(Pending, Wheel)
+    return Wheel
+
 def _Engine(Args):
     return Build_Package(Args.output, Mode=Args.mode, Python_Version=Args.python_version, OpenMP=Args.openmp, Target=Args.target)
+
+def _Print_Selection_Summary(Output):
+    Report = Path(Output).with_suffix(".selection.json")
+    if not Report.is_file():
+        return
+    try:
+        Data = json.loads(Report.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    Summary = Data.get("Summary")
+    if not isinstance(Summary, dict):
+        return
+    if Data.get("Measurement") is False:
+        print(f"  Static analysis: {Summary['Candidate_Regions']} eligible regions, {Summary['Skipped_Loops']} skipped loops.")
+        print("  Measurement disabled; eligible native candidates are generated without a measured speedup claim.")
+        print(f"  Report: {Report}")
+        return
+    print(f"  Selection: {Summary['Candidate_Regions']} candidate regions, {Summary['Native_Selected_Regions']} with native dispatch, {Summary['Skipped_Loops']} skipped loops.")
+    if Data.get("Status") == "no_candidates":
+        print("  No specialized native kernel was generated; the original loops remain unchanged.")
+    elif not Summary["Native_Selected_Regions"]:
+        print("  Selection retained Python for all candidate regions; inspect validation and timing outcomes in the report.")
+    print(f"  Report: {Report}")
 
 def _Main():
     sys.dont_write_bytecode = True
     Parser = argparse.ArgumentParser(description="Build PyCeler locally or process Python and Cython sources.")
-    Parser.add_argument("action", nargs="?", choices=("engine", "analyze", "convert", "compile", "doctor", "package"))
+    Parser.add_argument("action", nargs="?", choices=("engine", "analyze", "convert", "compile", "doctor", "package", "wheel"))
     Parser.add_argument("--input", help=".py, .pyx, .pxi file or source directory")
     Parser.add_argument("--output", help="Directory for generated sources/native modules; package writes its PyCeler folder here")
+    Parser.add_argument("--library", help="With wheel, package an existing verified library directory instead of rebuilding")
     Parser.add_argument("--mode", choices=("abi", "simple", "regular", "auto"), default="abi")
     Parser.add_argument("--build", help="Directory for temporary builds and compiler logs")
     Parser.add_argument("--python-version", "--limited-api", help="ABI floor (default 3.11) or simple-mode interpreter version")
@@ -199,8 +295,10 @@ def _Main():
         Parser.error("--build-check requires the doctor action")
     if Args.rank and Action != "analyze":
         Parser.error("--rank requires the analyze action")
-    if Args.target != "native" and Action not in ("engine", "package"):
+    if Args.target != "native" and Action not in ("engine", "package", "wheel"):
         Parser.error("--target applies to engine/package builds")
+    if Args.library and Action != "wheel":
+        Parser.error("--library requires the wheel action")
     if Args.compile_only and Action != "compile":
         Parser.error("--compile-only requires the compile action")
     if Args.compile_only and (Args.workloads or Args.elide_temporaries or Args.tune or Args.tuning or Args.profile):
@@ -232,6 +330,11 @@ def _Main():
             Parser.error("package builds individual PyCeler modules from this checkout and does not accept --input or grouped linking")
         print(Build_Package(Args.output, Mode=Args.mode, Python_Version=Args.python_version, OpenMP=Args.openmp, Target=Args.target))
         return
+    if Action == "wheel":
+        if Args.input or Args.link or Args.layout == "grouped":
+            Parser.error("wheel packages individual PyCeler modules and does not accept --input or grouped linking")
+        print(Build_Wheel(Args.output, Library_Directory=Args.library, Mode=Args.mode, Python_Version=Args.python_version, OpenMP=Args.openmp, Target=Args.target))
+        return
     if Action == "engine":
         if Args.input or Args.link or Args.layout == "grouped":
             Parser.error("engine builds the complete PyCeler library as individual modules; use compile for input sources")
@@ -246,6 +349,9 @@ def _Main():
                 Findings = sorted(Findings, key=lambda Item: -Item.Cost_Score)
             for Item in Findings:
                 print(f"{Item.Source}:{Item.Line}-{Item.End_Line} {Item.Function or '<module>'} | {Item.Change} | {Item.Reason}")
+                for Diagnostic in Item.Diagnostics:
+                    print(f"  {Diagnostic['Severity']} {Diagnostic['Code']} at {Diagnostic['Line']}:{Diagnostic['Column']}: {Diagnostic['Message']}")
+                    print(f"    {Diagnostic['Suggestion']}")
                 if Args.rank:
                     print(f"  Inspection score {Item.Cost_Score}: {Item.Cost_Reason}")
             if not Findings:
@@ -261,6 +367,10 @@ def _Main():
                                       Convert=not Args.compile_only, Workloads=Workloads, Cache=Args.cache, Elide_Temporaries=Args.elide_temporaries, Tuning=Tuning, Profile=Args.profile)
     for Item in Outputs if isinstance(Outputs, tuple) else (Outputs,):
         print(Item)
+        if Action in ("convert", "compile") and not Args.compile_only and Args.select:
+            _Print_Selection_Summary(Item)
+    if Action == "compile" and Args.compile_only:
+        print("Compilation completed with optimization analysis and measured selection disabled.")
 
 if __name__ == "__main__":
     _Main()

@@ -25,7 +25,7 @@ class Installed_Distribution(unittest.TestCase):
             Source.write_text("def Clear(Values):\n    for Index in range(len(Values)):\n        Values[Index] = 0\n    return Values\n", encoding="utf-8")
             Program = "\n".join((
                 "import json, sys", "from pathlib import Path", "sys.path.insert(0, sys.argv[1])", "import PyCeler",
-                "assert PyCeler.__name__ == 'PyCeler' and PyCeler.__version__ == '0.1.0'",
+                "assert PyCeler.__name__ == 'PyCeler' and PyCeler.__version__ == '0.2.0'",
                 "assert PyCeler.Analyze.__module__ == 'PyCeler.Engine'",
                 "assert PyCeler.Loop_Finding.__module__ == 'PyCeler.Loop_Detector'",
                 "Work = Path(sys.argv[2])", "Source = Work / 'Kernel.py'", "assert len(PyCeler.Analyze(Source)) == 1",

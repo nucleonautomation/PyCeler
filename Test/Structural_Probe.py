@@ -49,14 +49,28 @@ def _Overlap():
     Values = np.arange(12, dtype=np.int32)
     return Values[:-1], Values[1:], np.zeros(11, dtype=np.int32)
 
+def _Augmented_Alias():
+    Values = np.arange(12, dtype=np.int32)
+    return Values, Values, Values
+
 def _Run():
     Reference = _Reference()
     Source = np.arange(32, dtype=np.int32) % 7
     for Name, Extra, Outputs in (("Fused_Maps", (), 2), ("Repeated_Scores", (1,), 2), ("Local_Values", (), 2),
                                   ("Versioned_Reads", (), 2), ("Invariant_Scale", (2, 3), 1), ("Temporary_Pipeline", (2, 3), 1),
-                                  ("Implicit_Fusion", (), 2), ("Explicit_None", (2, 3), 1)):
+                                  ("Implicit_Fusion", (), 2), ("Explicit_None", (2, 3), 1), ("Augmented_Outputs", (), 2),
+                                  ("Augmented_Locals", (), 1), ("Sequential_Updates", (), 1)):
         _Native_Call(Name, (Source, *(np.zeros_like(Source) for Index in range(Outputs)), *Extra))
     _Native_Call("Column_First", (np.ones((3, 7), dtype=np.int32), np.zeros((3, 7), dtype=np.int32)))
+    for Name, Args in (("Augmented_Outputs", (Source, np.zeros_like(Source), np.ones_like(Source))),
+                       ("Augmented_Locals", (Source, np.zeros_like(Source))),
+                       ("Sequential_Updates", (Source, np.zeros_like(Source))),
+                       ("Independent_Updates", (np.zeros_like(Source), np.ones_like(Source)))):
+        Large = tuple(np.tile(Value, 2048) for Value in Args)
+        Expected = tuple(Value.copy() for Value in Large)
+        getattr(Reference, Name)(*Expected)
+        _Native_Call(Name, Large)
+        assert all(Left.tobytes() == Right.tobytes() for Left, Right in zip(Large, Expected)), Name
     for Dtype in (np.float32, np.float64):
         Input = np.arange(32, dtype=Dtype) % 7
         _Native_Call("Fused_Maps", (Input, np.zeros_like(Input), np.zeros_like(Input)))
@@ -75,10 +89,28 @@ def _Run():
             _Check(Reference, "Temporary_Pipeline", lambda: (Base(), Output(), 2, 3))
             _Check(Reference, "Implicit_Fusion", lambda: (Base(), Output(), Output()))
             _Check(Reference, "Explicit_None", lambda: (Base(), Output(), 2, 3))
+            _Check(Reference, "Augmented_Outputs", lambda: (Base(), Base(), Base()))
+            _Check(Reference, "Augmented_Locals", lambda: (Base(), Output()))
+            _Check(Reference, "Sequential_Updates", lambda: (Base(), Output()))
+            _Check(Reference, "Independent_Updates", lambda: (Base(), Base()))
     for Shape in ((0, 5), (4, 0), (1, 1), (3, 17), (64, 32)):
         _Check(Reference, "Column_First", lambda: (np.ones(Shape, dtype=np.int32), np.zeros(Shape, dtype=np.int32)))
     _Check(Reference, "Repeated_Scores", _Alias)
     _Check(Reference, "Fused_Maps", _Overlap)
+    _Check(Reference, "Augmented_Outputs", _Overlap)
+    _Check(Reference, "Augmented_Outputs", _Augmented_Alias)
+    _Check(Reference, "Augmented_Outputs", lambda: (np.arange(4, dtype=np.int32), np.zeros(4, dtype=np.int32), np.zeros(1, dtype=np.int32)))
+    _Check(Reference, "Sequential_Updates", lambda: (np.array([1, 2147483647], dtype=np.int32), np.zeros(2, dtype=np.int32)))
+    _Check(Reference, "Augmented_Locals", lambda: (np.array([0.25, -0.0, np.nan, np.inf]), np.zeros(4)))
+    for Name in ("Unsafe_Local_Reduction", "Unsafe_Index_Update"):
+        _Check(Reference, Name, lambda: (np.arange(4, dtype=np.int32), np.zeros(4, dtype=np.int32)))
+    Outcomes = [_Observe(Module.Uninitialized_Local, lambda: (np.arange(4, dtype=np.int32), np.zeros(4, dtype=np.int32))) for Module in (Reference, Native)]
+    assert Outcomes[0] == Outcomes[1], Outcomes
+    Original = ((np.dtype(np.int32).str, (4,), np.arange(4, dtype=np.int32).tobytes()),
+                (np.dtype(np.int32).str, (4,), np.zeros(4, dtype=np.int32).tobytes()))
+    for Outcome, State, Warnings in Outcomes:
+        assert Outcome[:2] == ("raise", "UnboundLocalError") and "Value" in Outcome[2], Outcome
+        assert State == Original and not Warnings, (State, Warnings)
     _Check(Reference, "Fused_Maps", lambda: (np.arange(4, dtype=np.int32), np.zeros(4, dtype=np.int32), np.zeros(1, dtype=np.int32)))
     _Check(Reference, "Implicit_Fusion", lambda: (np.arange(4, dtype=np.int32), np.zeros(4, dtype=np.int32), np.zeros(1, dtype=np.int32)))
     _Check(Reference, "Fused_Maps", lambda: (np.array([1, 2, 2147483647], dtype=np.int32), np.zeros(3, dtype=np.int32), np.zeros(3, dtype=np.int32)))

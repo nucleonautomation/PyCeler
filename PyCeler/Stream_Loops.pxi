@@ -67,7 +67,7 @@ cdef str _Receive_Kernel(dict Plan, int Line):
     Loop.body[-1] = ast.parse(f"_Pyceler_State.Append({Plan['Chunk']})").body[0]
     Parameters = ", ".join("object " + Name for Name in Plan["Names"])
     Lines = [f"cdef object _Pyceler_Special_{Line}({Parameters}, object _Pyceler_Base, bint _Pyceler_Unused):",
-             "    cdef _Pyceler_Chunks _Pyceler_State = _Pyceler_Chunks()"]
+             "    global socket, Exception, TimeoutError", "    cdef _Pyceler_Chunks _Pyceler_State = _Pyceler_Chunks()"]
     Lines.extend("    " + Part for Part in ast.unparse(Loop).splitlines())
     Lines.append("    return _Pyceler_State.Materialize()")
     return "\n".join(Lines)

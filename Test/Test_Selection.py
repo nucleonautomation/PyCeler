@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 from Test.Workspace import Temporary_Directory
+from Test.Generated_Source import _Python_Source
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -56,10 +57,14 @@ class Measured_Selection(unittest.TestCase):
         Data = json.loads(Report.read_text(encoding="utf-8"))
         self.assertEqual({Build["Status"] for Build in Data["Builds"].values()}, {"compilation failed"})
         self.assertEqual(Data["Items"][0]["Fallback"], "Python")
-        self.assertIn("return _Pyceler_Original_", Output.read_text(encoding="utf-8"))
+        self.assertIn("return _Pyceler_Original_", _Python_Source(Output.read_text(encoding="utf-8")))
         self.assertEqual(Data["Skipped"][0]["Function"], "Prefix_Sum")
         Convert(Source, self._Folder, Select=False)
-        self.assertFalse(Report.exists())
+        Replaced = json.loads(Report.read_text(encoding="utf-8"))
+        self.assertEqual(Replaced["Status"], "measurement_disabled")
+        self.assertFalse(Replaced["Measurement"])
+        self.assertEqual(Replaced["Builds"], {})
+        self.assertTrue(all(Item["Status"] == "unmeasured" for Item in Replaced["Items"]))
 
     def test_End_To_End_Per_Item_Dispatch(self):
         Source = self._Folder / "Mixed.py"
@@ -112,7 +117,7 @@ class Measured_Selection(unittest.TestCase):
         Source.write_text("def First" + Body + "\ndef Second" + Body, encoding="utf-8")
         def _Reject_First(Stage, Paths, *Options):
             Code = (Stage / "Sources" / Paths[0]).read_text(encoding="utf-8")
-            if "def Item_1(" in Code:
+            if "def Item_1(" in _Python_Source(Code):
                 raise RuntimeError("Cython generation failed for Probe_Serial.pyx")
             return _Build(Stage, Paths, *Options)
         with patch("PyCeler.Engine._Build", side_effect=_Reject_First):

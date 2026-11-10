@@ -9,7 +9,10 @@ from .Selection_Policy import _Selection_Table, _Candidate_Code, _Candidate_Name
 
 cdef str _Team_Probe = """
 from cython.parallel cimport parallel as _Probe_Parallel, threadid as _Probe_Id
-from openmp cimport omp_get_num_threads as _Probe_Count, omp_get_max_threads as _Probe_Max, omp_set_num_threads as _Probe_Set
+from openmp cimport omp_get_num_threads as _Probe_Count, omp_get_max_threads as _Probe_Max, omp_set_num_threads as _Probe_Set, omp_get_dynamic as _Probe_Dynamic
+
+def _Probe_Settings():
+    return _Probe_Max(), _Probe_Dynamic()
 def _Probe_Threads(int Count=0):
     cdef int Team[1]
     cdef int Previous = _Probe_Max()
@@ -26,23 +29,9 @@ def _Probe_Threads(int Count=0):
 """
 
 cdef tuple _Size_Arguments(dict Plan):
-    Names = Plan["Names"]
-    Slots = []
-    Parent = None
-    for Loop in Plan["Loops"]:
-        if Parent is not None and Loop not in Parent.body:
-            break
-        if isinstance(Loop, ast.For) and len(Loop.iter.args) == 1:
-            Bound = Loop.iter.args[0]
-        elif isinstance(Loop, ast.While) and isinstance(Loop.test, ast.Compare) and len(Loop.test.ops) == 1 and isinstance(Loop.test.ops[0], ast.Lt):
-            Bound = Loop.test.comparators[0]
-        else:
-            break
-        if not isinstance(Bound, ast.Name) or Bound.id not in Names:
-            break
-        Slots.append(Names.index(Bound.id))
-        Parent = Loop
-    return tuple(Slots) or ((0,) if Names else ())
+    if "Size_Arguments" in Plan:
+        return Plan["Size_Arguments"]
+    return tuple(_Scalar_Size_Plan(Plan)["Arguments"])
 
 cdef tuple _Probe_Item(int Line, tuple Edit, bint Parallel):
     Names, Node, Function, Plan = Edit
@@ -53,7 +42,7 @@ cdef tuple _Probe_Item(int Line, tuple Edit, bint Parallel):
     Definition.returns = None
     for Arg in Definition.args.posonlyargs + Definition.args.args:
         Arg.annotation = None
-    Scalar = Plan is not None and Plan.get("Kind") == "scalar"
+    Scalar = Plan is not None and Plan.get("Kind") in ("scalar", "scalar_region")
     Loops = [Node] if Plan is None else Plan["Loops"]
     Item = dict(Function=Plan["Scope"] if Region else Function.name, Line=Line, End_Line=Node.end_lineno if Region else Function.end_lineno, Loops=len(Loops),
                 Loop_Lines=[Loop.lineno for Loop in Loops], Kind="scalar" if Scalar else "array",
@@ -67,7 +56,23 @@ cdef tuple _Probe_Item(int Line, tuple Edit, bint Parallel):
         Item.update(Kind="span", Mode=Plan["Mode"], Skipped_Candidates={"OpenMP": "Contiguous byte span operation runs serially"})
     elif Scalar:
         Item["Size_Arguments"] = _Size_Arguments(Plan)
-        Item["Skipped_Candidates"] = {"OpenMP": "Ordered scalar control flow has no proven parallel implementation"}
+        if Plan.get("Kind") == "scalar_region":
+            Item["Range_Start_Argument"] = 1
+            Item["Range_Step"] = Plan["Step"]
+            Period = Plan.get("Period")
+            Item["Span_Maximum"] = Period // math.gcd(Plan["Step"], Period) if Period is not None else None
+            Item["Workload"] = "Isolated pure numeric span; excludes surrounding Python calls and reporting"
+        else:
+            Item["Size_Plan"] = _Scalar_Size_Plan(Plan)
+        if Plan.get("Parallel_Reduction"):
+            Item["Numerical_Contract"] = "Exact integer addition; runtime interval proof bounds every expression and every possible partial sum to int64"
+            Item["Serial_Contract"] = "The same interval proof and unchecked integer term as OpenMP, accumulated sequentially"
+            if Parallel:
+                Item["Eligible"].append("OpenMP")
+            else:
+                Item["Skipped_Candidates"] = {"OpenMP": "Disabled by caller"}
+        else:
+            Item["Skipped_Candidates"] = {"OpenMP": "Ordered scalar control flow has no proven parallel implementation"}
     else:
         Kind = Plan.get("Kind") if Plan is not None else None
         if Kind == "median":
@@ -173,22 +178,85 @@ cdef dict _Probe_Builds(object Reference, list Items, object Folder, object Mode
 
 cdef dict _Measure_Item(list Command, object Folder, dict Item, dict Candidates, double Gain):
     Request = Folder / (Item["Probe"] + ".json")
+    Request.with_suffix(".result").unlink(missing_ok=True)
     Request.write_text(json.dumps(dict(Item=Item, Modules=Candidates, Gain=Gain)), encoding="utf-8")
     Package_Root = str(Path(__file__).resolve().parent.parent)
     Worker = "import sys; sys.path.insert(0, sys.argv[1]); from pathlib import Path; from PyCeler.Selection_Worker import _Run; _Run(Path(sys.argv[2]))"
-    Process = subprocess.run([*Command, "-I", "-B", "-c", Worker, Package_Root, str(Request)], cwd=Folder, capture_output=True,
-                             text=True, errors="replace", timeout=45 + Item.get("Tuning", {}).get("Budget_Seconds", 0))
+    Budget = Item.get("Tuning", {}).get("Budget_Seconds", 30)
+    try:
+        Process = subprocess.run([*Command, "-I", "-B", "-c", Worker, Package_Root, str(Request)], cwd=Folder, capture_output=True,
+                                 text=True, errors="replace", timeout=Budget + 5)
+    except subprocess.TimeoutExpired:
+        if not Request.with_suffix(".result").is_file():
+            raise
+        Result = json.loads(Request.with_suffix(".result").read_text(encoding="utf-8"))
+        Result["Worker_Budget"]["Hard_Timeout"] = True
+        Result["Worker_Budget"]["Process_Limit_Seconds"] = Budget + 5
+        return Result
     if Process.returncode:
         raise RuntimeError(Process.stderr[-2000:] or f"Worker exited with {Process.returncode}")
     return json.loads(Request.with_suffix(".result").read_text(encoding="utf-8"))
+
+cdef void _Selection_Report(dict Report) except *:
+    Counts = {}
+    for Item in Report["Items"]:
+        Selected = any(Mode for Bands in Item.get("Dispatch", {}).values() for Bound, Mode in Bands)
+        Cases = Item.get("Cases", [])
+        Validation = [Status for Case in Cases for Name, Status in Case.get("Validation", {}).items() if Name != "Python"]
+        if Selected:
+            Status = "native_selected"
+        elif Item.get("Reason") == "No native candidate built":
+            Status = "no_native_candidate_built"
+        elif Item.get("Probe_Error") or "Inconclusive" in Item.get("Reason", "") or any(Case.get("Validation", {}).get("Python", "").startswith("inconclusive") for Case in Cases):
+            Status = "inconclusive"
+        elif any(Value.startswith("invalid") for Value in Validation):
+            Status = "validation_failed"
+        elif Validation and not any(Value == "valid" for Value in Validation):
+            Status = "unsupported_inputs"
+        else:
+            Status = "python_selected"
+        Item["Status"] = Status
+        Item["Runtime_Fallback"] = "Runtime input, binding, environment and arithmetic guards still apply; this report records isolated probes, not later application calls."
+        if "Summary" in Item:
+            Item["Summary"]["Status"] = Status
+        Counts[Status] = Counts.get(Status, 0) + 1
+    Report["Status"] = "no_candidates" if not Report["Items"] else "native_selected" if Counts.get("native_selected") else "python_selected"
+    Report["Summary"] = dict(Candidate_Regions=len(Report["Items"]), Native_Selected_Regions=Counts.get("native_selected", 0),
+                             Skipped_Loops=len(Report["Skipped"]), Candidate_Builds=len(Report["Builds"]), Outcomes=Counts,
+                             Scope="Candidate validation and selection; final module compilation is a separate operation.")
+
+cdef dict _Unmeasured_Report(object File, tuple Prepared):
+    from dataclasses import asdict
+    Text, Findings, Edits, Tree = Prepared
+    Eligible = []
+    Covered = set()
+    for Line, Edit in sorted(Edits.items()):
+        Names, Node, Function, Plan = Edit
+        Loops = Plan.get("Loops", [Node]) if Plan is not None else [Node]
+        Covered.update(Loop.lineno for Loop in Loops)
+        Eligible.append(dict(Function=Plan.get("Scope", Function.name) if Plan is not None else Function.name,
+                             Line=Line, End_Line=Node.end_lineno, Kind=Plan.get("Kind", "array") if Plan is not None else "array",
+                             Status="unmeasured", Transformations=Plan.get("Transformations", []) if Plan is not None else []))
+    Skipped = [dict(Function=Finding.Function, Line=Finding.Line, End_Line=Finding.End_Line, Reason=Finding.Reason,
+                    Action="Keep original Python loop", Diagnostics=[Diagnostic._As_Dict() for Diagnostic in Finding.Diagnostics])
+               for Finding in Findings if Finding.Line not in Covered]
+    return dict(Format="PyCeler selection 1", Source=str(File), Status="measurement_disabled", Measurement=False,
+                Findings=[asdict(Finding) for Finding in Findings], Eligible_Regions=Eligible, Items=Eligible, Skipped=Skipped, Builds={},
+                Fallback_Contract="Unsupported Python source and guard fallbacks execute as CPython code; native Cython input and Convert=False retain Cython semantics.",
+                Summary=dict(Candidate_Regions=len(Eligible), Native_Selected_Regions=0, Skipped_Loops=len(Skipped), Candidate_Builds=0,
+                             Scope="Static analysis only; eligible candidates were not behaviorally validated or timed"))
 
 cdef tuple _Select_Items(object File, tuple Prepared, object Folder, object Mode, object Version, bint Parallel, double Gain, object Workloads=None, object Cache=False, bint Elide_Temporaries=False, object Tuning=None, bint Profile=False):
     Text, Findings, Edits, Tree = Prepared
     Choices, Items, Definitions, Builds = {}, [], [], {}
     Workloads = _Normalize_Workloads(Workloads)
     Tuning = _Normalize_Tuning(Tuning)
+    Finding_By_Line = {Finding.Line: Finding for Finding in Findings}
     for Line, Edit in sorted(Edits.items()):
         Item, Definition = _Probe_Item(Line, Edit, Parallel)
+        Diagnostics = { (Diagnostic.Code, Diagnostic.Line, Diagnostic.Column): Diagnostic._As_Dict()
+                        for Loop_Line in Item["Loop_Lines"] if Loop_Line in Finding_By_Line for Diagnostic in Finding_By_Line[Loop_Line].Diagnostics }
+        Item["Diagnostics"] = list(Diagnostics.values())
         Item["Profile"] = Profile
         if Tuning:
             Item["Tuning"] = Tuning
@@ -202,9 +270,12 @@ cdef tuple _Select_Items(object File, tuple Prepared, object Folder, object Mode
         Items.append(Item)
         Definitions.append(Definition)
     Covered = {Line for Item in Items for Line in Item["Loop_Lines"]}
-    Skipped = [dict(Function=Finding.Function, Line=Finding.Line, End_Line=Finding.End_Line, Reason=Finding.Reason, Action="Keep original loop") for Finding in Findings if Finding.Line not in Covered]
-    Report = dict(Format="PyCeler selection 1", Source=str(File), Minimum_Speedup=Gain, Build_Mode=Mode, Items=Items, Skipped=Skipped, Builds=Builds)
+    Skipped = [dict(Function=Finding.Function, Line=Finding.Line, End_Line=Finding.End_Line, Reason=Finding.Reason, Action="Keep original loop",
+                    Diagnostics=[Diagnostic._As_Dict() for Diagnostic in Finding.Diagnostics]) for Finding in Findings if Finding.Line not in Covered]
+    Report = dict(Format="PyCeler selection 1", Source=str(File), Minimum_Speedup=Gain, Build_Mode=Mode, Items=Items, Skipped=Skipped, Builds=Builds,
+                  Fallback_Contract="Python-source conversion preserves unsupported code and guarded fallbacks as CPython code. Native .pyx/.pxi input and Convert=False retain Cython compilation semantics.")
     if not Items:
+        _Selection_Report(Report)
         return Choices, None, Report
     Command, Floor = _Interpreter(Mode, Version)
     Report["Python_Target"] = Floor
@@ -246,12 +317,23 @@ cdef tuple _Select_Items(object File, tuple Prepared, object Folder, object Mode
             except Failures as Serial_Error:
                 Item.update(Cases=[], Fallback="Python", Reason="Inconclusive serial probe: " + str(Serial_Error))
                 continue
-        if Environment is None or Result["Environment"]["NumPy"] is not None:
-            Environment = Result["Environment"]
-        Item.update(Cases=Result["Cases"], OpenMP_Team=Result["Threads"], OpenMP_Teams=Result.get("Teams", {}), Import_Errors=Result["Import_Errors"], Fallback="Python")
-        Table = _Selection_Table(Result["Cases"], Gain, "Representative_Workload" in Item or bool(Tuning))
+        if Environment is None:
+            Environment = Result["Environment"].copy()
+        else:
+            for Key in ("NumPy", "OpenMP_Settings"):
+                if Result["Environment"].get(Key) is not None:
+                    Environment[Key] = Result["Environment"][Key]
+        Item.update(Cases=Result["Cases"], OpenMP_Team=Result["Threads"], OpenMP_Teams=Result.get("Teams", {}), Import_Errors=Result["Import_Errors"],
+                    Worker_Budget=Result.get("Worker_Budget", {}), Fallback="Python")
+        Table = _Selection_Table(Result["Cases"], Gain, "Representative_Workload" in Item)
+        Item["Coverage"] = {Key: dict(Minimum_Measured=min((Case["Size"] for Case in Result["Cases"] if Case["Key"] == Key and Case["Timings"]), default=None),
+            Maximum_Measured=max((Case["Size"] for Case in Result["Cases"] if Case["Key"] == Key and Case["Timings"]), default=None),
+            Native_Size_Ceiling=max(Case["Size"] for Case in Result["Cases"] if Case["Key"] == Key) if "Representative_Workload" in Item else None,
+            Extrapolates="Representative_Workload" not in Item) for Key in Table}
         if "Representative_Workload" in Item:
             Item["Dispatch_Validation"] = "Every measured shape and distribution in each band must support promotion; holdouts do not define bands; larger unmeasured sizes use Python"
+        else:
+            Item["Dispatch_Validation"] = "Synthetic workload bands extrapolate above the largest probe, including with tuning; arithmetic and input guards remain active. Performance at larger sizes is unmeasured; supply production Workloads for bounded dispatch."
         Item["Dispatch"] = Table
         for Case in Result["Cases"]:
             Selected = next((Mode for Bound, Mode in Table.get(Case["Key"], ()) if Case["Size"] >= Bound), 0)
@@ -262,6 +344,7 @@ cdef tuple _Select_Items(object File, tuple Prepared, object Folder, object Mode
     Report["Environment"] = Environment
     Report["Measured_Priorities"] = sorted([dict(Function=Item["Function"], Line=Item["Line"],
         Largest_Python_Median_Ns=max((Case["Timings"]["Python"]["Median_Ns"] for Case in Item.get("Cases", []) if "Python" in Case["Timings"]), default=0)) for Item in Items], key=lambda Value: -Value["Largest_Python_Median_Ns"])
+    _Selection_Report(Report)
     try:
         _Cache_Write(Context, Choices, Environment, Report, Folder)
     except OSError as Error:

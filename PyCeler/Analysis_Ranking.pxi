@@ -32,6 +32,17 @@ cdef bint _Rank_Binds_Range(object Node):
     return False
 
 cdef object _Rank_Iterations(object Node, list Parts, bint Range_Bound):
+    if isinstance(Node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
+        Count = 1
+        for Generator in Node.generators:
+            if Generator.is_async or Generator.ifs:
+                return None
+            Loop = ast.For(target=Generator.target, iter=Generator.iter, body=[], orelse=[])
+            Iterations = _Rank_Iterations(Loop, [], Range_Bound)
+            if Iterations is None:
+                return None
+            Count *= Iterations
+        return Count
     if Range_Bound or not isinstance(Node, ast.For):
         return None
     Call = Node.iter
@@ -60,7 +71,7 @@ cdef void _Rank_Loops(object Node, int Depth, dict Loops, bint Range_Bound=False
                 Names.append(Arguments.kwarg.arg)
             Range_Bound = Range_Bound or "range" in Names
             Range_Bound |= _Rank_Binds_Range(Node)
-    if isinstance(Node, (ast.For, ast.AsyncFor, ast.While)):
+    if isinstance(Node, (ast.For, ast.AsyncFor, ast.While, ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
         Depth += 1
         Loops[Node.lineno] = (Node, Depth, Range_Bound)
     for Child in ast.iter_child_nodes(Node):

@@ -199,6 +199,14 @@ def _Flags(Parallel):
     Shared = ["-fopenmp"] if Parallel else []
     return ["-O2", "-DNDEBUG", "-g0", "-ffp-contract=off", *Shared], ["-Wl,--strip-all", *Shared]
 
+def _Interpreter_ABI():
+    Tag = f"cp{sys.version_info.major}{sys.version_info.minor}"
+    if sysconfig.get_config_var("Py_GIL_DISABLED"):
+        Tag += "t"
+    if sysconfig.get_config_var("Py_DEBUG") or hasattr(sys, "gettotalrefcount"):
+        Tag += "d"
+    return Tag
+
 def _Module_Name(Relative):
     Parts = Relative.with_suffix("").parts
     if Parts[-1] == "__init__" and len(Parts) > 1:
@@ -301,6 +309,7 @@ def _Run(Spec):
     Environment = dict(Python=sys.version, Executable=sys.executable, Platform=platform.platform(), Machine=platform.machine(),
                        Pointer_Bits=8 * struct.calcsize("P"), Cython=Cython.__version__, Compiler=Compiler.compiler_type,
                        Mode=Request["Mode"], ABI_Floor=Version if Stable else None, Macros=Macros,
+                       ABI_Tag="abi3" if Stable else _Interpreter_ABI(), GIL_Disabled=bool(sysconfig.get_config_var("Py_GIL_DISABLED")),
                        Serial_Flags=_Flags(False), OpenMP_Flags=_Flags(True))
     (Stage / "Build_Environment.json").write_text(json.dumps(Environment, indent=2), encoding="utf-8")
     Groups = {}

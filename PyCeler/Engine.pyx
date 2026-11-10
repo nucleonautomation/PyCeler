@@ -89,6 +89,9 @@ include "Regions.pxi"
 include "Structural_Planner.pxi"
 include "Numeric_Planner.pxi"
 include "Analysis_Ranking.pxi"
+include "Scalar_Regions.pxi"
+include "Scalar_Sizing.pxi"
+include "Diagnostics.pxi"
 include "Cython_Frontend.pxi"
 
 cdef void _Visit(object Node, tuple Scope, object Function, list Findings, dict Edits, str Source, bint Parallel, set Top_Level, object Covered=None) except *:
@@ -103,10 +106,12 @@ cdef void _Visit(object Node, tuple Scope, object Function, list Findings, dict 
                 Edits[Loop.lineno] = (Receive["Names"], Node, Node, Receive)
                 Covered[Loop] = ("Ordered_IO_Loop", "Receive calls, short reads, EOF and the original exception handlers remain ordered. Selection uses an in-memory fragmented stream.", "Guarded serial exact-length receive")
             Scalar = _Scalar_Plan(Node)
-            if Scalar is not None:
+            if Scalar is not None and Scalar["Names"]:
                 Edits[Node.lineno] = (Scalar["Names"], Node, Node, Scalar)
                 for Loop in Scalar["Loops"]:
-                    Covered[Loop] = ("Scalar_Integer_Loop", "Exact integer locals and checked arithmetic preserve iteration order; overflow replays the side-effect-free function in Python.", "Guarded serial integer loop")
+                    Covered[Loop] = ("Scalar_Numeric_Loop" if Scalar.get("Division") else "Scalar_Integer_Loop", "Checked arithmetic preserves iteration order; incompatible inputs or integer overflow replay the side-effect-free function in Python.", "Guarded serial numeric loop" if Scalar.get("Division") else "Guarded serial integer loop")
+                    if Parallel and Scalar.get("Parallel_Reduction"):
+                        Covered[Loop] = ("Scalar_Integer_Reduction", "Independent integer terms can be summed exactly in parallel when runtime bounds prove every intermediate and arbitrary partial sum fits int64.", "Guarded exact OpenMP integer reduction with serial fallback")
     if isinstance(Node, (ast.For, ast.AsyncFor, ast.While)):
         Classification, Reason = _Classify(Node, Function)
         Reads, Writes = [], []
@@ -144,6 +149,14 @@ cdef void _Visit(object Node, tuple Scope, object Function, list Findings, dict 
                 Reason = "Keep the order and exception boundaries of " + ", ".join(Operations) + "; numeric subloops are analyzed separately."
         Findings.append(Loop_Finding(".".join(Scope) if Function is not None else None, Node.lineno, Node.end_lineno,
                                      tuple(Reads), tuple(Writes), Classification, Reason, Change, Source))
+    elif isinstance(Node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
+        Reads, Writes = [], []
+        _Accesses(Node, Reads, Writes)
+        Kind = "Generator_Expression" if isinstance(Node, ast.GeneratorExp) else "Comprehension_Loop"
+        Clauses = len(Node.generators)
+        Reason = f"Detected {Clauses} comprehension iteration clause(s). Iterable consumption, filters, allocation, scope and exception order require a verified lowering."
+        Findings.append(Loop_Finding(".".join(Scope) if Function is not None else None, Node.lineno, Node.end_lineno,
+                                     tuple(Reads), tuple(Writes), Kind, Reason, "Keep original loop", Source))
     for Child in ast.iter_child_nodes(Node):
         _Visit(Child, Scope, Function, Findings, Edits, Source, Parallel, Top_Level, Covered)
 
@@ -159,6 +172,8 @@ cdef tuple _Plan(object File, bint Parallel, bint Elide_Temporaries=False):
     _Find_Regions(Tree, Findings, Edits, Parallel)
     _Structural_Plans(Tree, Findings, Edits, Parallel, Elide_Temporaries)
     _Numeric_Plans(Tree, Findings, Edits, Parallel, Elide_Temporaries)
+    _Find_Scalar_Regions(Tree, Findings, Edits)
+    _Apply_Diagnostics(Tree, Findings, Edits)
     Findings = _Rank_Findings(Findings, Tree, Edits)
     return Text, Findings, Edits, Tree
 

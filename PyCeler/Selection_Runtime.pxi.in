@@ -1,15 +1,25 @@
 cdef bint _Pyceler_Local = ENVIRONMENT_MATCH
+cdef object _Pyceler_Thread_Baseline = THREAD_BASELINE
+cdef object _Pyceler_Thread_Import = THREAD_CURRENT
+cdef inline int _Pyceler_Dispatch_Choice(int Mode, object Reason, object Size=None, object Key=None) except -1:
+    if _Pyceler_Dispatch_Enabled:
+        _Pyceler_Dispatch_Info.clear()
+        _Pyceler_Dispatch_Info["Selection"] = {"Mode": Mode, "Reason": Reason, "Size": Size, "Dtype": Key}
+    return Mode
 
 cdef int _Pyceler_Choose(object Value, bint Scalar, dict Table, object Scan=None, object Minimum=0) except -1:
     import builtins as _Pyceler_Builtins
     import sys as _Pyceler_Sys
     if not _Pyceler_Local:
-        return 0
+        return _Pyceler_Dispatch_Choice(0, "environment_changed")
+    Thread_Expected = _Pyceler_Thread_Baseline if _Pyceler_Thread_Baseline is not None else _Pyceler_Thread_Import
+    if THREAD_CURRENT != Thread_Expected:
+        return _Pyceler_Dispatch_Choice(0, "thread_settings_changed")
     if Scalar:
         Size = 1
         for Bound in Value:
             if _Pyceler_Builtins.type(Bound) is not _Pyceler_Builtins.int or not 0 < Bound <= 9223372036854775807:
-                return 0
+                return _Pyceler_Dispatch_Choice(0, "scalar_type_or_bounds")
             Size = Size * Bound
         Key = "int"
     elif _Pyceler_Builtins.type(Value) is _Pyceler_Builtins.bytearray:
@@ -18,20 +28,20 @@ cdef int _Pyceler_Choose(object Value, bint Scalar, dict Table, object Scan=None
     else:
         Numpy = _Pyceler_Sys.modules.get("numpy")
         if Numpy is None or _Pyceler_Builtins.type(Value) is not _Pyceler_Builtins.getattr(Numpy, "ndarray", None):
-            return 0
+            return _Pyceler_Dispatch_Choice(0, "array_type")
         Size = Value.size
         if Scan is not None:
             if _Pyceler_Builtins.type(Scan) is not Numpy.ndarray or Scan.ndim < 1:
-                return 0
+                return _Pyceler_Dispatch_Choice(0, "scan_shape")
             Size = Scan.shape[0]
         if Size < Minimum:
-            return 0
+            return _Pyceler_Dispatch_Choice(0, "below_measured_threshold", Size)
         if False NUMPY_CHECK:
-            return 0
+            return _Pyceler_Dispatch_Choice(0, "numpy_version", Size)
         Key = Value.dtype.str
     if Size < Minimum:
-        return 0
+        return _Pyceler_Dispatch_Choice(0, "below_measured_threshold", Size, Key)
     for Bound, Mode in Table.get(Key, ()):
         if Size >= Bound:
-            return Mode
-    return 0
+            return _Pyceler_Dispatch_Choice(Mode, "selected_native_candidate" if Mode else "measured_python_band", Size, Key)
+    return _Pyceler_Dispatch_Choice(0, "unmeasured_dtype_or_size", Size, Key)

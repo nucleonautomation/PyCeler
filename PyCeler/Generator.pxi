@@ -2,6 +2,9 @@ include "Map_Generator.pxi"
 include "Region_Generator.pxi"
 include "Structural_Generator.pxi"
 include "Numeric_Generator.pxi"
+include "Scalar_Region_Generator.pxi"
+include "Dispatch_Instrumentation.pxi"
+include "Python_Module.pxi"
 
 cdef str _Tuned_Kernel(str Code, int Count):
     Names = re.findall(r"(?m)^cdef (?:inline )?\w+ (_Pyceler_\w+)\(", Code)
@@ -21,6 +24,7 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
         Prefix += "X"
     Map_Kernels = []
     Scalar_Kernels = []
+    Has_Scalar_Regions = False
     Specials = []
     Streams = []
     Structures = []
@@ -30,7 +34,9 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
     Has_Clear = False
     Tuned_Clear = set()
     Has_Parallel = False
+    Has_Parallel_Scalar = False
     Tables = []
+    Has_Scalar_Sizing = False
     for Line in sorted(Edits, reverse=True):
         Names, Node, Function, Plan = Edits[Line]
         Region = Plan is not None and Plan.get("Region", False)
@@ -40,7 +46,18 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
         Codes = {Mode for Rows in Table.values() for Size, Mode in Rows} if Table else set()
         Modes = {4 if Code >= 10000 else 2 if Code >= 100 else Code for Code in Codes}
         Native = Table is None or bool(Modes & {1, 2, 3, 4})
-        Threads = Parallel and (Table is None or 2 in Modes) and Kind not in ("scalar", "receive", "span")
+        if Kind == "scalar_region":
+            if not Native:
+                continue
+            Has_Scalar_Regions = True
+            Scalar_Kernels.append(_Scalar_Region_Kernel(Plan, Line))
+            if Table is not None:
+                Tables.append(f"{Prefix}Table_{Line} = {Table!r}")
+            Indent = Lines[Line - 1][:len(Lines[Line - 1]) - len(Lines[Line - 1].lstrip(" \t"))]
+            Replacement = _Scalar_Region_Source(Plan, Node, Line, Prefix, Table)
+            Lines[Line - 1:Node.end_lineno] = [Indent + Value for Value in Replacement.splitlines()]
+            continue
+        Threads = Parallel and (Table is None or 2 in Modes) and Kind not in ("receive", "span") and (Kind != "scalar" or bool(Plan.get("Parallel_Reduction")))
         Has_Parallel |= Threads
         if not Native:
             Helper = ""
@@ -70,7 +87,8 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
             Numerics.append(_Median_Kernel(Plan, Line, Threads))
             Helper = f"{Prefix}Median_{Line}"
         elif Plan.get("Kind") == "scalar":
-            Scalar_Kernels.append(_Scalar_Kernel(Plan, Line))
+            Scalar_Kernels.append(_Scalar_Kernel(Plan, Line, Threads))
+            Has_Parallel_Scalar |= bool(Plan.get("Parallel_Reduction"))
             Helper = f"{Prefix}Scalar_{Line}"
         else:
             Map_Kernels.append(_Map_Kernel(Plan, Line, Threads, Choices is not None))
@@ -80,7 +98,7 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
             if Plan is None or Plan.get("Clear"):
                 Tuned_Clear.update(Counts)
             else:
-                Collection = Structures if Kind == "structural" else Numerics if Kind == "median" else Specials if Kind in ("stencil", "count", "projection", "row_selection") else Map_Kernels
+                Collection = Scalar_Kernels if Kind == "scalar" else Structures if Kind == "structural" else Numerics if Kind == "median" else Specials if Kind in ("stencil", "count", "projection", "row_selection") else Map_Kernels
                 Kernel = Collection[-1]
                 Collection.extend(_Tuned_Kernel(Kernel, Count) for Count in Counts)
         Start = Line if Plan is None else Plan["Start"]
@@ -104,11 +122,11 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
             if Kind == "receive":
                 Probe = f"({Plan['Key']},)"
             elif Scalar:
-                Size_Names = [Names[Index] for Index in _Size_Arguments(Plan)]
-                Probe = "(" + ", ".join(Size_Names) + ("," if Size_Names else "") + ")"
+                Has_Scalar_Sizing = True
+                Probe = _Scalar_Size_Probe(Plan, Names, Prefix)
             else:
                 Probe = Names[0] if Plan is None else Plan.get("Key", Plan["Output"])
-            Tables.append(f"cdef dict {Prefix}Table_{Line} = {Table!r}")
+            Tables.append(f"{Prefix}Table_{Line} = {Table!r}")
             Choice = f"{Prefix}Choice_{Line}"
             Customized = any(Code >= 100 for Code in Codes)
             Configuration = f"{Prefix}Configuration_{Line}" if Customized else Choice
@@ -128,6 +146,8 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
             Parameters = [*Kernel_Names, Baseline]
             if not Scalar:
                 Parameters.append((Choice if Table is not None else ("2" if Threads else "3")) if Kind == "structural" else (Flag if Threads else "False"))
+            elif Threads:
+                Parameters.append(Flag)
             if Kind == "stencil":
                 Parameters.append(f"{Choice} == 4" if Table is not None else "False")
                 Parameters.append(f"({Configuration} - 10000 if {Configuration} >= 10000 else 32)" if Table is not None else "32")
@@ -157,12 +177,16 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
             End = Function.end_lineno if not Native else Node.end_lineno
             Lines[Start - 1:End] = Body
     Header = []
+    if Has_Scalar_Regions:
+        Header.append(_Resource("Scalar_Region_Runtime.pxi.in").replace("REGION_FILENAME", repr(File.name)).replace("_Pyceler_", Prefix))
+    if Has_Scalar_Sizing:
+        Header.append(_Scalar_Sizing_Runtime.replace("_Pyceler_", Prefix))
     if Tables:
         Runtime = _Resource("Selection_Runtime.pxi.in")
         Fingerprint = _Resource("Selection_Environment.py")
         Match = "True" if Environment is None else f"{Prefix}Environment() == {Environment['Host']!r}"
         Numpy_Check = "" if Environment is None or Environment["NumPy"] is None else f" or {Prefix}Builtins.getattr(Numpy, '__version__', None) != {Environment['NumPy']!r}"
-        Header.extend([Fingerprint.replace("_Pyceler_", Prefix), Runtime.replace("_Pyceler_", Prefix).replace("ENVIRONMENT_MATCH", Match).replace("NUMPY_CHECK", Numpy_Check), *Tables])
+        Header.extend([Fingerprint.replace("_Pyceler_", Prefix), Runtime.replace("_Pyceler_", Prefix).replace("ENVIRONMENT_MATCH", Match).replace("NUMPY_CHECK", Numpy_Check).replace("THREAD_BASELINE", repr(Environment.get("OpenMP_Settings")) if Has_Parallel and Environment else "None").replace("THREAD_CURRENT", f"[{Prefix}Max_Threads(), {Prefix}Dynamic()]" if Has_Parallel else "None"), *Tables])
     if Scalar_Kernels:
         Header.append(f"from builtins import ArithmeticError as {Prefix}ArithmeticError\nclass {Prefix}Overflow({Prefix}ArithmeticError):\n    pass")
     if Regions:
@@ -172,13 +196,11 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
         Package = File.parent.name
         Aliases = {Package: _Member_Alias(Package, Members)} if Package in Members else {}
         Header.append(Loader.replace("_Pyceler_", Prefix).replace("MEMBER_NAMES", repr(Members)).replace("MEMBER_ALIASES", repr(Aliases)))
-    if Header:
-        _Insert_Header(Lines, Tree, "\n".join(Header))
     if not Edits:
-        return "\n".join(Lines)
+        return _Python_Module("\n".join(Lines), "\n".join(Header), File, Prefix)
     Imports = "from cython.parallel cimport prange as _Pyceler_Prange" if Has_Parallel else ""
     if Has_Parallel:
-        Imports += "\nfrom openmp cimport omp_in_parallel as _Pyceler_In_Parallel, omp_get_max_threads as _Pyceler_Max_Threads"
+        Imports += "\nfrom openmp cimport omp_in_parallel as _Pyceler_In_Parallel, omp_get_max_threads as _Pyceler_Max_Threads, omp_get_num_threads as _Pyceler_Reduction_Team, omp_get_dynamic as _Pyceler_Dynamic"
     Common = _Resource("Kernel_Common.pxi.in")
     Parts = [Common.replace("KERNEL_IMPORT", Imports)]
     if Has_Clear:
@@ -203,8 +225,11 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
         Parts.append(_Resource("Span_Runtime.pxi.in"))
     if Scalar_Kernels:
         Parts.append(_Resource("Scalar_Runtime.pxi.in"))
+        if Has_Parallel_Scalar:
+            Parts.append(_Resource("Scalar_Parallel_Runtime.pxi.in"))
         Parts.extend(reversed(Scalar_Kernels))
-    return "\n".join(Lines) + "\n" + "\n".join(Parts).replace("_Pyceler_", Prefix) + "\n"
+    Native_Source = "\n".join(Header) + "\n" + "\n".join(Parts).replace("_Pyceler_", Prefix)
+    return _Python_Module("\n".join(Lines), Native_Source, File, Prefix)
 
 cdef str _Parallel_Body = """    cdef Py_ssize_t Block, Offset, Length, Chunk, Chunks
     if not Allow_Threads:
@@ -303,9 +328,14 @@ cdef tuple _Convert_Files(object Root, list Files, object Staging, object OpenMP
             Relative_Paths.append(Relative)
             continue
         Choices = Environment = None
-        if Select and Prepared[1]:
+        if Select:
             with _Temporary_Workspace(Staging) as Folder:
                 Choices, Environment, Report = _Select_Items(File, Prepared, Folder, Mode, Version, Parallel, Gain, Workloads, Cache, Elide_Temporaries, Tuning, Profile)
+            Report_Path = Relative.with_suffix(".selection.json")
+            (Staging / Report_Path).write_text(json.dumps(Report, indent=2), encoding="utf-8")
+            Reports.append(Report_Path)
+        else:
+            Report = _Unmeasured_Report(File, Prepared)
             Report_Path = Relative.with_suffix(".selection.json")
             (Staging / Report_Path).write_text(json.dumps(Report, indent=2), encoding="utf-8")
             Reports.append(Report_Path)

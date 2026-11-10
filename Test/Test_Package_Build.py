@@ -78,7 +78,10 @@ class Native_Distribution(unittest.TestCase):
         self.assertIn("Runtime_Resources", {File.stem for File in Files})
         self.assertIn("Map_Runtime.pxi.in", Captured["Resource"])
         self.assertNotIn("Structural_Runtime.pxi.in", Captured["Resource"])
-        self.assertEqual((Output / "__init__.py").read_text(encoding="utf-8"), Compile._Package_Init(self._Root / "PyCeler"))
+        self.assertEqual((Output / "__init__.py").read_text(encoding="utf-8"), Compile._Package_Init(self._Root / "PyCeler", Manifest["Build_Id"], Manifest["Source_Fingerprint"]))
+        self.assertEqual(Manifest["Source_Fingerprint"], Compile._Identity(self._Root)._Source_State(self._Root)["Source_Fingerprint"])
+        self.assertIn("PyCeler/Scalar_Parallel_Runtime.pxi.in", Manifest["Sources"])
+        self.assertEqual(len(Manifest["Build_Id"]), 64)
         self.assertNotIn("Build", (Output / "__init__.py").read_text(encoding="utf-8"))
 
     def test_Source_And_Foreign_Output_Are_Protected(self):

@@ -122,6 +122,62 @@ class Optimization_Selection(unittest.TestCase):
             Third = _Key()
         self.assertEqual(len({First, Second, Third}), 3)
 
+    def test_Cache_Repairs_Corruption_And_Reuses_Valid_Entries(self):
+        Root = self._Folder / "Cache"
+        Root.mkdir()
+        Artifacts = self._Folder / "Probe"
+        Artifacts.mkdir()
+        (Artifacts / "Reference.py").write_text("def Item():\n    return 1\n", encoding="utf-8")
+        Context = (Root, "example", {"Source": "content-key"})
+        Choices = {2: {"int": [(4, 1)]}}
+        Report = dict(Format="PyCeler selection 1", Items=[], Builds={})
+        _Cache_Write(Context, Choices, {"Host": []}, Report, Artifacts)
+        File = Root / "example" / "Result.json"
+        File.write_text("incomplete", encoding="utf-8")
+        self.assertIsNone(_Cache_Read(Context))
+        _Cache_Write(Context, Choices, {"Host": []}, Report, Artifacts)
+        self.assertEqual(_Cache_Read(Context)[0], Choices)
+        self.assertEqual((Root / "example" / "Artifacts" / "Reference.py").read_bytes(), (Artifacts / "Reference.py").read_bytes())
+        Valid = File.read_bytes()
+        with patch("PyCeler.Selection_Cache.os.replace", side_effect=AssertionError("A valid cache entry must remain unchanged")):
+            _Cache_Write(Context, Choices, {"Host": []}, Report, Artifacts)
+        self.assertEqual(File.read_bytes(), Valid)
+        self.assertFalse((Root / "example.lock").exists())
+
+    def test_Cache_Repair_Restores_Previous_Entry_On_Publication_Failure(self):
+        Root = self._Folder / "Cache"
+        Root.mkdir()
+        Directory = Root / "example"
+        Directory.mkdir()
+        File = Directory / "Result.json"
+        File.write_text("recoverable previous data", encoding="utf-8")
+        Artifacts = self._Folder / "Probe"
+        Artifacts.mkdir()
+        Context = (Root, "example", {"Source": "content-key"})
+        Report = dict(Format="PyCeler selection 1", Items=[], Builds={})
+        Replace = os.replace
+        def _Replace(Source, Destination):
+            if Path(Source).name == "example" and Path(Source).parent.name.startswith("Pending_"):
+                raise OSError("simulated publication failure")
+            return Replace(Source, Destination)
+        with patch("PyCeler.Selection_Cache.os.replace", side_effect=_Replace):
+            with self.assertRaisesRegex(OSError, "simulated publication failure"):
+                _Cache_Write(Context, {}, {"Host": []}, Report, Artifacts)
+        self.assertEqual(File.read_text(encoding="utf-8"), "recoverable previous data")
+        self.assertFalse((Root / "example.lock").exists())
+
+    def test_Cache_Rejects_Entries_Outside_Its_Root(self):
+        Root = self._Folder / "Cache"
+        Root.mkdir()
+        Artifacts = self._Folder / "Probe"
+        Artifacts.mkdir()
+        Context = (Root, "../Outside", {"Source": "content-key"})
+        Report = dict(Format="PyCeler selection 1", Items=[], Builds={})
+        self.assertIsNone(_Cache_Read(Context))
+        with self.assertRaisesRegex(OSError, "direct local child"):
+            _Cache_Write(Context, {}, {"Host": []}, Report, Artifacts)
+        self.assertFalse((self._Folder / "Outside").exists())
+
     def test_Cache_Rejects_A_Source_Changed_After_Planning(self):
         Source = self._Folder / "Input.py"
         Source.write_text("def F():\n    return 2\n", encoding="utf-8")
