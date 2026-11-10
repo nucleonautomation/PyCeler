@@ -1,0 +1,37 @@
+cdef bint _Pyceler_Local = ENVIRONMENT_MATCH
+
+cdef int _Pyceler_Choose(object Value, bint Scalar, dict Table, object Scan=None, object Minimum=0) except -1:
+    import builtins as _Pyceler_Builtins
+    import sys as _Pyceler_Sys
+    if not _Pyceler_Local:
+        return 0
+    if Scalar:
+        Size = 1
+        for Bound in Value:
+            if _Pyceler_Builtins.type(Bound) is not _Pyceler_Builtins.int or not 0 < Bound <= 9223372036854775807:
+                return 0
+            Size = Size * Bound
+        Key = "int"
+    elif _Pyceler_Builtins.type(Value) is _Pyceler_Builtins.bytearray:
+        Size = _Pyceler_Builtins.len(Value)
+        Key = "bytearray"
+    else:
+        Numpy = _Pyceler_Sys.modules.get("numpy")
+        if Numpy is None or _Pyceler_Builtins.type(Value) is not _Pyceler_Builtins.getattr(Numpy, "ndarray", None):
+            return 0
+        Size = Value.size
+        if Scan is not None:
+            if _Pyceler_Builtins.type(Scan) is not Numpy.ndarray or Scan.ndim < 1:
+                return 0
+            Size = Scan.shape[0]
+        if Size < Minimum:
+            return 0
+        if False NUMPY_CHECK:
+            return 0
+        Key = Value.dtype.str
+    if Size < Minimum:
+        return 0
+    for Bound, Mode in Table.get(Key, ()):
+        if Size >= Bound:
+            return Mode
+    return 0

@@ -1,0 +1,40 @@
+from libc.string cimport memmove as _Pyceler_Span_Move
+
+cdef object _Pyceler_Copy_Span(object Source, object Output, object Offset, object Count, object Baseline, bint Unused):
+    import builtins as B
+    cdef const unsigned char[::1] S
+    cdef unsigned char[::1] D
+    cdef Py_ssize_t Start, Length
+    if (B.type(Output) is not B.bytearray or not _Pyceler_Byte_Source(Source, Output) or
+            B.type(Offset) is not B.int or B.type(Count) is not B.int or not _Pyceler_Bindings(Baseline) or
+            not 0 <= Offset <= B.len(Source) or not 0 <= Count <= B.len(Source) - Offset or Count > B.len(Output)):
+        return Baseline(Source, Output, Offset, Count)
+    Start, Length = Offset, Count
+    if Length:
+        S, D = Source, Output
+        _Pyceler_Span_Move(&D[0], &S[Start], Length)
+    return Output
+
+cdef object _Pyceler_Zero_Span(object Output, object Start, object End, object Baseline):
+    import builtins as B
+    cdef unsigned char[::1] D
+    cdef Py_ssize_t Offset, Length
+    if (B.type(Output) is not B.bytearray or B.type(Start) is not B.int or B.type(End) is not B.int or
+            not 0 <= Start <= End <= B.len(Output) or not _Pyceler_Bindings(Baseline)):
+        return None
+    Offset, Length = Start, End - Start
+    if Length:
+        D = Output
+        _Pyceler_Memset(&D[Offset], 0, Length)
+    return Output
+
+cdef object _Pyceler_Fill_Span(object Output, object Start, object End, object Baseline, bint Unused):
+    if _Pyceler_Zero_Span(Output, Start, End, Baseline) is None:
+        return Baseline(Output, Start, End)
+    return Output
+
+cdef object _Pyceler_Fill_Tail(object Output, object Start, object Baseline, bint Unused):
+    import builtins as B
+    if B.type(Output) is not B.bytearray or _Pyceler_Zero_Span(Output, Start, B.len(Output), Baseline) is None:
+        return Baseline(Output, Start)
+    return Output

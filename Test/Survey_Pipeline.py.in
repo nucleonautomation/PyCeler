@@ -1,0 +1,163 @@
+import numpy as Numpy
+from collections import deque
+
+def Count_Scan_Positions(Rows, Columns):
+    Score = 0
+    for Row in range(Rows):
+        Column = 0
+        while Column < Columns:
+            Score += Row + Column
+            Column += 1
+    return Score
+
+def Clear_Profile(Profile):
+    for Index in range(len(Profile)):
+        Profile[Index] = 0
+    return Profile
+
+def Calibrate_Grid(Source, Destination, Offset):
+    Rows, Columns = Source.shape
+    for Row in range(Rows):
+        for Column in range(Columns):
+            Destination[Row, Column] = Source[Row, Column] + Offset
+    return Destination
+
+def Select_Peaks(First, Second, Output):
+    Rows, Columns = Output.shape
+    for Row in range(Rows):
+        for Column in range(Columns):
+            Output[Row, Column] = First[Row, Column] if First[Row, Column] > Second[Row, Column] else Second[Row, Column]
+    return Output
+
+def Mark_Volume(Source, Output, Threshold):
+    Depth, Rows, Columns = Source.shape
+    Layer = 0
+    while Layer < Depth:
+        for Row in range(Rows):
+            Column = 0
+            while Column < Columns:
+                Output[Layer, Row, Column] = 1 if Source[Layer, Row, Column] >= Threshold else 0
+                Column += 1
+        Layer += 1
+    return Output
+
+def Prefix_Profile(Profile):
+    for Index in range(1, len(Profile)):
+        Profile[Index] += Profile[Index - 1]
+    return Profile
+
+def _Run_Lengths(Mask):
+    Runs = []
+    for Row, Values in enumerate(Mask):
+        Column = 0
+        while Column < len(Values):
+            if not Values[Column]:
+                Column += 1
+                continue
+            Start = Column
+            Column += 1
+            while Column < len(Values) and Values[Column]:
+                Column += 1
+            Runs.append((Row, Start, Column))
+    return Runs
+
+def _Components(Mask):
+    Rows, Columns = Mask.shape
+    Seen = Numpy.zeros_like(Mask, dtype=bool)
+    Regions = []
+    for Row, Start, End in _Run_Lengths(Mask):
+        for Column in range(Start, End):
+            if Seen[Row, Column]:
+                continue
+            Seen[Row, Column] = True
+            Queue = deque([(Row, Column)])
+            Count = 0
+            Border = 0
+            Top = Bottom = Row
+            Left = Right = Column
+            while Queue:
+                Y, X = Queue.popleft()
+                Top = min(Top, Y)
+                Bottom = max(Bottom, Y)
+                Left = min(Left, X)
+                Right = max(Right, X)
+                Count += 1
+                for DY, DX in ((-1, 0), (0, -1), (0, 1), (1, 0)):
+                    Next_Y, Next_X = Y + DY, X + DX
+                    if not (0 <= Next_Y < Rows and 0 <= Next_X < Columns) or not Mask[Next_Y, Next_X]:
+                        Border += 1
+                        continue
+                    if not Seen[Next_Y, Next_X]:
+                        Seen[Next_Y, Next_X] = True
+                        Queue.append((Next_Y, Next_X))
+            Regions.append((Count, Border, (Top, Left, Bottom, Right)))
+    return sorted(Regions, reverse=True)
+
+def _Histogram(Frame, Valid, Width):
+    Counts = {}
+    for Row, Samples in enumerate(Frame):
+        for Column, Value in enumerate(Samples):
+            if Valid[Row, Column]:
+                Bucket = int(Value) // Width
+                Counts[Bucket] = Counts.get(Bucket, 0) + 1
+    return Counts
+
+def _Rolling_Maximum(Values, Window):
+    if Window < 1:
+        raise ValueError("Window must be positive")
+    Queue = deque()
+    Result = []
+    for Index, Value in enumerate(Values):
+        while Queue and Queue[0][0] <= Index - Window:
+            Queue.popleft()
+        while Queue and Queue[-1][1] <= Value:
+            Queue.pop()
+        Queue.append((Index, Value))
+        Result.append(Queue[0][1])
+    return Result
+
+class _Survey_Log:
+    def __init__(self):
+        self._Events = []
+        self._Peak = None
+
+    def _Record(self, Name, Response, Missing):
+        Values = Response[Response != Missing]
+        if Values.size:
+            Bounds = (int(Values.min()), int(Values.max()))
+            Peak = max(abs(Bounds[0]), abs(Bounds[1]))
+            if self._Peak is None or Peak > self._Peak[0]:
+                self._Peak = (Peak, Name)
+        else:
+            Bounds = None
+        self._Events.append((Name, int(Values.size), Bounds))
+
+    def _Summary(self):
+        return dict(Events=tuple(self._Events), Peak=self._Peak)
+
+def Process_Survey(Volume, Threshold, Offset, Stride):
+    if Volume.ndim != 3 or Volume.shape[0] < 2:
+        raise ValueError("At least two survey frames are required")
+    if Stride < 1:
+        raise ValueError("Stride must be positive")
+    Rows, Columns = Volume.shape[1:]
+    Marked = Mark_Volume(Volume, Numpy.empty_like(Volume), Threshold)
+    First = Calibrate_Grid(Volume[0], Numpy.empty_like(Volume[0]), Offset)
+    Peak = Select_Peaks(First, Volume[-1], Numpy.empty_like(First))
+    Profile = Clear_Profile(Numpy.empty(Columns, dtype=Numpy.int64))
+    for Layer in Marked:
+        Profile += Layer.sum(axis=0, dtype=Numpy.int64)
+    Prefix_Profile(Profile)
+    Coarse = Peak[::Stride, ::Stride]
+    Valid = Volume[0, ::Stride, ::Stride] != -128
+    Regions = _Components((Coarse >= Threshold) & Valid)
+    Missing = -(1 << 50)
+    Responses = {}
+    Log = _Survey_Log()
+    for Name, Evaluate in Filter_Bank:
+        Response = Evaluate(Coarse, Valid, Missing)
+        Responses[Name] = Response
+        Log._Record(Name, Response, Missing)
+    return dict(Marked=Marked, Peak=Peak, Cumulative=Profile, Regions=Regions, Filters=Responses,
+                Histogram=_Histogram(Coarse, Valid, 8), Envelope=_Rolling_Maximum([int(Value) for Value in Peak.max(axis=0)], 5),
+                Audit=Log._Summary(), Scan_Score=Count_Scan_Positions(Rows, Columns))

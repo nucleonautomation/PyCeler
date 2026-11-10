@@ -1,0 +1,13 @@
+/To-Do.md
+/AGENTS.md
+/Session.md
+/Test_Run/
+/Build/
+/Output/
+/Toolchain_Installer/Packages/
+/Toolchain_Installer/Microsoft.VisualStudio.manifest.json
+/PyCeler_Toolchain_Installer_Windows_x64.7z
+/PyCeler_Toolchain_Installer_Windows_x64.7z.sha256
+/PyCeler/*.pyd
+/PyCeler/*.so
+__pycache__/

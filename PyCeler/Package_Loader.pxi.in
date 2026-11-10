@@ -1,0 +1,28 @@
+def _Pyceler_Register():
+    from importlib.machinery import ExtensionFileLoader
+    from importlib.util import spec_from_file_location
+    import sys
+    Binary = __file__
+    Package = __name__
+    Directory = globals()["__path__"][0]
+    Members = frozenset(__name__ + "." + Name for Name in MEMBER_NAMES)
+    Aliases = MEMBER_ALIASES
+    class _Member_Loader(ExtensionFileLoader):
+        def create_module(self, Spec):
+            Alias = Aliases.get(Spec.name.rsplit(".", 1)[-1])
+            if Alias is None:
+                return super().create_module(Spec)
+            Alias_Spec = spec_from_file_location(Package + "." + Alias, Binary, loader=self, submodule_search_locations=None)
+            Module = super().create_module(Alias_Spec)
+            Module.__name__ = Spec.name
+            Module.__package__ = Spec.parent
+            Module.__spec__ = Spec
+            return Module
+    class _Package_Finder:
+        def find_spec(self, fullname, path=None, target=None):
+            if fullname in Members and path is not None and Directory in path:
+                return spec_from_file_location(fullname, Binary, loader=_Member_Loader(fullname, Binary),
+                                               submodule_search_locations=None)
+    sys.meta_path.insert(0, _Package_Finder())
+_Pyceler_Register()
+del _Pyceler_Register

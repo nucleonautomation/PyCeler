@@ -1,0 +1,16 @@
+@_Pyceler_Bounds(False)
+@_Pyceler_Wrap(False)
+cdef bint _Pyceler_Clear(object Values, object Baseline, bint Allow_Threads) except -1:
+    import sys as _Pyceler_Sys
+    import builtins as _Pyceler_Builtins
+    cdef unsigned char[::1] Data
+    cdef Py_ssize_t Size
+    Numpy = _Pyceler_Sys.modules.get("numpy")
+    if not _Pyceler_Array(Values, Numpy, 1) or not Values.flags.writeable or not _Pyceler_Bindings(Baseline):
+        return False
+    Data = _Pyceler_Builtins.memoryview(Values).cast("B")
+    Size = Data.shape[0]
+    if Size == 0:
+        return True
+    KERNEL_BODY
+    return True

@@ -1,0 +1,64 @@
+name: Native regression
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, ubuntu-24.04-arm]
+        python: ["3.11", "3.14"]
+    env:
+      OMP_NUM_THREADS: "2"
+      OMP_DYNAMIC: "FALSE"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install build dependencies
+        run: python -m pip install --upgrade pip "Cython>=3.1" setuptools numpy
+      - name: Build full stable ABI package
+        run: python -B Compile.py
+      - name: Verify compiled package resolution
+        run: python -B -c "import pathlib, PyCeler, PyCeler.Engine; assert pathlib.Path(PyCeler.Engine.__file__).resolve().parent == pathlib.Path('Build/Lib/PyCeler').resolve(); print(PyCeler.Engine.__file__)"
+      - name: Run native regression suite
+        run: python -B Test/Run.py
+      - name: Build stable ABI fixture
+        run: python -B Compile.py compile --input Test/ABI_Loops.py --output Test_Run/ABI/Native --no-select --openmp
+      - name: Verify current interpreter ABI
+        run: python -B Test/Verify_ABI.py Test_Run/ABI/Native
+      - name: Verify compiler and OpenMP capabilities
+        run: python -B Compile.py doctor --build-check --build Test_Run/Doctor
+      - name: Select the other ABI smoke-test interpreter
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python == '3.11' && '3.14' || '3.11' }}
+      - name: Install ABI smoke-test dependencies
+        run: python -m pip install "Cython>=3.1" numpy
+      - name: Import the same binaries on the other interpreter
+        run: python -B Test/Verify_ABI.py Test_Run/ABI/Native
+      - name: Preserve diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-${{ matrix.os }}-python-${{ matrix.python }}
+          path: |
+            Test_Run/**/Results.txt
+            Test_Run/**/*.json
+            Build/Logs/*.log
+          if-no-files-found: ignore
+          retention-days: 14

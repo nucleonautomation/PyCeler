@@ -1,0 +1,38 @@
+cdef class _Pyceler_Chunks:
+    cdef object _Value
+    cdef bytearray _Buffer
+
+    def __cinit__(self):
+        self._Value = b""
+
+    cdef object Materialize(self):
+        import builtins as B
+        if self._Buffer is not None:
+            self._Value = B.bytes(self._Buffer)
+            self._Buffer = None
+        return self._Value
+
+    cdef object Length(self, object Baseline):
+        Length = Baseline.__globals__.get("len", Baseline.__builtins__.get("len"))
+        if Length is None and "len" not in Baseline.__globals__ and "len" not in Baseline.__builtins__:
+            raise NameError("name 'len' is not defined")
+        if (_Pyceler_Is_C_Function(Length) and Length.__name__ == "len" and
+                Length.__self__ is _Pyceler_Stream_Builtins and self._Buffer is not None):
+            return len(self._Buffer)
+        return Length(self.Materialize())
+
+    cdef void Append(self, object Chunk) except *:
+        import builtins as B
+        if B.type(Chunk) is B.bytes:
+            if self._Buffer is not None:
+                self._Buffer.extend(Chunk)
+                return
+            if B.type(self._Value) is B.bytes and self._Value:
+                self._Buffer = B.bytearray(self._Value)
+                self._Value = None
+                self._Buffer.extend(Chunk)
+                return
+        self.Materialize()
+        self._Value += Chunk
+
+import builtins as _Pyceler_Stream_Builtins

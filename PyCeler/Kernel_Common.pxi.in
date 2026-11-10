@@ -1,0 +1,53 @@
+from libc.string cimport memset as _Pyceler_Memset
+from cython cimport boundscheck as _Pyceler_Bounds, wraparound as _Pyceler_Wrap
+KERNEL_IMPORT
+cdef extern from "Python.h":
+    char _Pyceler_Range_Type "PyRange_Type"
+    char _Pyceler_Int_Type "PyLong_Type"
+    bint _Pyceler_Is_C_Function "PyCFunction_Check"(object)
+
+cdef object _Pyceler_Baseline(str Source, object Native, str Filename, object Name=None):
+    import builtins as _Pyceler_Builtins
+    from types import CodeType, FunctionType
+    Name = Native.__name__ if Name is None else Name
+    Module_Code = _Pyceler_Builtins.compile(Source, Filename, "exec", dont_inherit=True)
+    for Code in Module_Code.co_consts:
+        if _Pyceler_Builtins.isinstance(Code, CodeType) and Code.co_name == Name:
+            return FunctionType(Code, Native.__globals__, Name)
+    raise RuntimeError("Missing Python baseline for " + Native.__name__)
+
+cdef bint _Pyceler_Bindings(object Baseline):
+    import builtins as _Pyceler_Builtins
+    Namespace = Baseline.__globals__
+    Builtins = Baseline.__builtins__
+    Range = Namespace.get("range", Builtins.get("range"))
+    Length_Function = Namespace.get("len", Builtins.get("len"))
+    return (<void*>Range == <void*>&_Pyceler_Range_Type and _Pyceler_Is_C_Function(Length_Function)
+            and Length_Function.__self__ is _Pyceler_Builtins and Length_Function.__name__ == "len")
+
+cdef bint _Pyceler_Array(object Values, object Numpy, int Dimensions, bint Pixels=False):
+    import builtins as _Pyceler_Builtins
+    return (Numpy is not None and _Pyceler_Builtins.type(Values) is _Pyceler_Builtins.getattr(Numpy, "ndarray", None)
+            and Values.ndim == Dimensions and Values.flags.c_contiguous and Values.flags.aligned
+            and Values.dtype.isnative and Values.dtype.metadata is None
+            and ((Values.dtype.kind in ("i", "f") and Values.dtype.itemsize in (4, 8)) or
+                 (Pixels and Values.dtype.kind in ("i", "u") and Values.dtype.itemsize in (1, 2))))
+
+cdef bint _Pyceler_Byte_Source(object Source, object Output):
+    import builtins as B
+    if B.type(Source) is B.bytes or B.type(Source) is B.bytearray:
+        return True
+    if B.type(Source) is B.memoryview:
+        try:
+            return (Source.ndim == 1 and Source.format == "B" and Source.c_contiguous and
+                    B.type(Source.obj) in (B.bytes, B.bytearray) and Source.obj is not Output)
+        except ValueError:
+            return False
+    return False
+
+cdef bint _Pyceler_Extent(object Output, int Axis, object Size):
+    import sys as S
+    import builtins as B
+    N = S.modules.get("numpy")
+    return N is not None and B.type(Output) is N.ndarray and Axis < Output.ndim and B.type(Size) is B.int and Output.shape[Axis] == Size
+

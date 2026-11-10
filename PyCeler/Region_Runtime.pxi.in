@@ -1,0 +1,88 @@
+from libc.stdint cimport int16_t as _Pyceler_S16, int32_t as _Pyceler_S32, int64_t as _Pyceler_S64, uint16_t as _Pyceler_U16, uint8_t as _Pyceler_U8
+
+ctypedef fused _Pyceler_Pixel:
+    _Pyceler_U8
+    _Pyceler_S16
+    _Pyceler_U16
+    _Pyceler_S32
+
+ctypedef fused _Pyceler_Sample:
+    _Pyceler_S32
+    _Pyceler_S64
+    float
+    double
+
+ctypedef fused _Pyceler_Coordinate:
+    float
+    double
+
+cdef object _Pyceler_Indices(object A):
+    import sys as S
+    N = S.modules.get("numpy")
+    if _Pyceler_Plain_Array(A, N, 1) and A.dtype.name in ("int32", "int64"):
+        return A.astype("int64", copy=True)
+    return None
+
+cdef bint _Pyceler_Points_OK(object A, object Rem, bint Indirect, tuple Coefficients, object Baseline):
+    import sys as S
+    import builtins as B
+    N = S.modules.get("numpy")
+    Space, Builtins = Baseline.__globals__, Baseline.__builtins__
+    Absolute = Space.get("abs", Builtins.get("abs"))
+    if (not _Pyceler_Bindings(Baseline) or Space.get("float", Builtins.get("float")) is not B.type(0.0)
+            or not _Pyceler_Is_C_Function(Absolute) or Absolute.__self__ is not B or Absolute.__name__ != "abs"):
+        return False
+    if not _Pyceler_Plain_Array(A, N, 2) or A.dtype.name not in ("float32", "float64") or A.shape[1] < 2:
+        return False
+    if Indirect and (Rem is None or (Rem.size and (Rem.min() < 0 or Rem.max() >= A.shape[0]))):
+        return False
+    for V in Coefficients:
+        if (B.type(V) is not B.float and B.type(V) is not B.int) or not -9007199254740991 <= V <= 9007199254740991:
+            return False
+    return N.isfinite(A).all()
+
+cdef bint _Pyceler_Labels_OK(object Flag, object Labels, object Value, object Points):
+    import sys as S
+    import builtins as B
+    if B.type(Flag) is not B.bool:
+        return False
+    return not Flag or (_Pyceler_Plain_Array(Labels, S.modules.get("numpy"), 1) and Labels.dtype.name == "int32" and
+                        Labels.size >= Points.shape[0] and B.type(Value) is B.int and -2147483648 <= Value <= 2147483647)
+
+cdef bint _Pyceler_Plain_Array(object A, object N, int Rank):
+    import builtins as B
+    return (N is not None and B.type(A) is N.ndarray and A.ndim == Rank and A.flags.aligned and
+            A.dtype.isnative and A.dtype.metadata is None)
+
+cdef bint _Pyceler_Stencil_OK(object A, object M, object O, object H, object W, object Baseline):
+    import sys as S
+    import builtins as B
+    N = S.modules.get("numpy")
+    if not _Pyceler_Bindings(Baseline) or Baseline.__globals__.get("int", Baseline.__builtins__.get("int")) is not B.type(0):
+        return False
+    if not (_Pyceler_Plain_Array(A, N, 2) and _Pyceler_Plain_Array(M, N, 2) and _Pyceler_Plain_Array(O, N, 2)):
+        return False
+    return (B.type(H) is B.int and B.type(W) is B.int and A.shape == (H, W) and A.shape == M.shape == O.shape and
+            A.dtype.name in ("uint8", "int16", "uint16", "int32") and M.dtype.name == "bool" and O.dtype.name == "int64" and
+            O.flags.c_contiguous and O.flags.writeable and not N.may_share_memory(A, O) and not N.may_share_memory(M, O))
+
+cdef bint _Pyceler_Count_OK(object A, object Limit, object Baseline):
+    import builtins as B
+    import sys as S
+    N = S.modules.get("numpy")
+    if not _Pyceler_Bindings(Baseline) or not _Pyceler_Plain_Array(A, N, 1):
+        return False
+    if A.dtype.name in ("int32", "int64"):
+        return B.type(Limit) is B.int and -2147483648 <= Limit <= 2147483647
+    if A.dtype.name not in ("float32", "float64") or B.type(Limit) not in (B.int, B.float) or not -16777216 <= Limit <= 16777216:
+        return False
+    return (A.dtype.name == "float64" or <double><float>Limit == Limit) and N.isfinite(A).all()
+
+cdef bint _Pyceler_Rows_OK(object A, object O, object Baseline):
+    import sys as S
+    N = S.modules.get("numpy")
+    if not _Pyceler_Bindings(Baseline) or not _Pyceler_Plain_Array(A, N, 2) or not _Pyceler_Plain_Array(O, N, 1):
+        return False
+    return (A.dtype.name in ("int32", "int64", "float32", "float64") and O.dtype.name == "uint8" and
+            A.shape[1] <= 256 and O.size == A.shape[0] and O.flags.c_contiguous and O.flags.writeable and
+            not N.may_share_memory(A, O) and (A.dtype.kind == "i" or N.isfinite(A).all()))

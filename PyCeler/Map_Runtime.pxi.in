@@ -1,0 +1,207 @@
+from libc.stdint cimport int8_t as _Pyceler_Map_I8, uint8_t as _Pyceler_Map_U8, int16_t as _Pyceler_Map_I16, uint16_t as _Pyceler_Map_U16, int32_t as _Pyceler_I32, int64_t as _Pyceler_I64
+from libc.math cimport fabs as _Pyceler_Abs, isfinite as _Pyceler_Finite, ldexp as _Pyceler_Ldexp, floor as _Pyceler_Floor, signbit as _Pyceler_Signbit
+from libc.float cimport FLT_MAX as _Pyceler_Float_Max
+
+cdef extern from "fenv.h":
+    int _Pyceler_Nearest "FE_TONEAREST"
+    int _Pyceler_Rounding "fegetround"() noexcept
+
+ctypedef fused _Pyceler_Value:
+    _Pyceler_Map_I8
+    _Pyceler_Map_U8
+    _Pyceler_Map_I16
+    _Pyceler_Map_U16
+    _Pyceler_I32
+    _Pyceler_I64
+    float
+    double
+
+ctypedef fused _Pyceler_Real:
+    float
+    double
+
+@_Pyceler_Bounds(False)
+@_Pyceler_Wrap(False)
+cdef object _Pyceler_Integral_Bounds(const _Pyceler_Real[::1] Data, double Limit):
+    cdef Py_ssize_t Index
+    cdef double Value, Low = 0, High = 0
+    cdef bint Valid = True
+    if Data.shape[0] == 0:
+        return (0, 0)
+    Low = High = Data[0]
+    with nogil:
+        for Index in range(Data.shape[0]):
+            Value = Data[Index]
+            if not _Pyceler_Finite(Value) or _Pyceler_Abs(Value) > Limit or _Pyceler_Floor(Value) != Value or (Value == 0 and _Pyceler_Signbit(Value)):
+                Valid = False
+                break
+            if Value < Low:
+                Low = Value
+            if Value > High:
+                High = Value
+    if not Valid:
+        return None
+    return (int(Low), int(High))
+
+cdef inline bint _Pyceler_Magnitude_OK(double Value, double Low, double High) noexcept nogil:
+    return _Pyceler_Finite(Value) and (Value == 0.0 or Low <= _Pyceler_Abs(Value) <= High)
+
+@_Pyceler_Bounds(False)
+@_Pyceler_Wrap(False)
+cdef bint _Pyceler_Float_Input(const _Pyceler_Real[::1] Data, bint Arithmetic, double Low, double High) noexcept:
+    cdef Py_ssize_t Index, Size = Data.shape[0]
+    with nogil:
+        for Index from 0 <= Index < Size:
+            if Arithmetic:
+                if not _Pyceler_Magnitude_OK(Data[Index], Low, High):
+                    return False
+            elif not _Pyceler_Finite(Data[Index]):
+                return False
+    return True
+
+cdef bint _Pyceler_Exact_Scalar(double Value, bint Single):
+    if not _Pyceler_Finite(Value):
+        return False
+    return not Single or (_Pyceler_Abs(Value) <= _Pyceler_Float_Max and <double><float>Value == Value)
+
+cdef bint _Pyceler_Float_Guards(tuple Args, tuple Reads, tuple Scalars, tuple Literals, tuple Arithmetic, bint Comparison, bint Single):
+    cdef int Exponent = 20 if Single else 200
+    cdef double Low = _Pyceler_Ldexp(1.0, -Exponent), High = _Pyceler_Ldexp(1.0, Exponent)
+    if Arithmetic:
+        if Comparison or len(Arithmetic) != 1:
+            return False
+        Left_Kind, Right_Kind = Arithmetic[0][1][0], Arithmetic[0][2][0]
+        if "array" not in (Left_Kind, Right_Kind) or (Single and (Left_Kind, Right_Kind) != ("array", "array")):
+            return False
+        for Slot in Scalars:
+            if not _Pyceler_Magnitude_OK(Args[Slot], Low, High):
+                return False
+        for Operand in Arithmetic[0][1:]:
+            if Operand[0] == "literal" and not _Pyceler_Magnitude_OK(Operand[1], Low, High):
+                return False
+    for Value in Literals:
+        if not _Pyceler_Exact_Scalar(Value, Single):
+            return False
+    if Arithmetic or Comparison:
+        for Slot in Reads:
+            Flat = Args[Slot].reshape(-1)
+            if Single:
+                if not _Pyceler_Float_Input[float](Flat, len(Arithmetic) != 0, Low, High):
+                    return False
+            elif not _Pyceler_Float_Input[double](Flat, len(Arithmetic) != 0, Low, High):
+                return False
+    return True
+
+cdef tuple _Pyceler_Interval(tuple Recipe, dict Bounds):
+    import builtins as _Pyceler_Builtins
+    Operation = Recipe[0]
+    if Operation == "literal":
+        return Recipe[1], Recipe[1]
+    if Operation in ("scalar", "array"):
+        return Bounds[Recipe[1]]
+    Left, Right = _Pyceler_Interval(Recipe[1], Bounds), _Pyceler_Interval(Recipe[2], Bounds)
+    if Operation == "+":
+        return Left[0] + Right[0], Left[1] + Right[1]
+    if Operation == "-":
+        return Left[0] - Right[1], Left[1] - Right[0]
+    Products = (Left[0] * Right[0], Left[0] * Right[1], Left[1] * Right[0], Left[1] * Right[1])
+    return _Pyceler_Builtins.min(Products), _Pyceler_Builtins.max(Products)
+
+@_Pyceler_Bounds(False)
+@_Pyceler_Wrap(False)
+cdef tuple _Pyceler_Map_Bounds(const _Pyceler_Value[::1] Data):
+    cdef Py_ssize_t Index, Size = Data.shape[0]
+    cdef _Pyceler_Value Low = Data[0], High = Data[0], Value
+    with nogil:
+        for Index in range(1, Size):
+            Value = Data[Index]
+            if Value < Low:
+                Low = Value
+            if Value > High:
+                High = Value
+    return Low, High
+
+cdef tuple _Pyceler_Integer_Bounds(object Value):
+    Flat = Value.reshape(-1)
+    if Value.dtype.name == "int8":
+        return _Pyceler_Map_Bounds[_Pyceler_Map_I8](Flat)
+    if Value.dtype.name == "uint8":
+        return _Pyceler_Map_Bounds[_Pyceler_Map_U8](Flat)
+    if Value.dtype.name == "int16":
+        return _Pyceler_Map_Bounds[_Pyceler_Map_I16](Flat)
+    if Value.dtype.name == "uint16":
+        return _Pyceler_Map_Bounds[_Pyceler_Map_U16](Flat)
+    if Value.dtype.itemsize == 4:
+        return _Pyceler_Map_Bounds[_Pyceler_I32](Flat)
+    return _Pyceler_Map_Bounds[_Pyceler_I64](Flat)
+
+cdef bint _Pyceler_Map_Allowed(tuple Args, int Destination, tuple Arrays, tuple Scalars, tuple Reads,
+                                int Dimensions, tuple Arithmetic, bint Comparison, tuple Literals, tuple Integers, object Baseline):
+    import sys as _Pyceler_Sys
+    import builtins as _Pyceler_Builtins
+    Numpy = _Pyceler_Sys.modules.get("numpy")
+    Output = Args[Destination]
+    if not _Pyceler_Bindings(Baseline) or not _Pyceler_Array(Output, Numpy, Dimensions, True) or not Output.flags.writeable:
+        return False
+    for Slot in Arrays:
+        Value = Args[Slot]
+        if Value is Output:
+            continue
+        if not _Pyceler_Array(Value, Numpy, Dimensions, True) or Value.dtype != Output.dtype or Value.shape != Output.shape:
+            return False
+        if Numpy.may_share_memory(Value, Output):
+            return False
+    for Slot in Scalars:
+        Value = Args[Slot]
+        if _Pyceler_Builtins.type(Value) is _Pyceler_Builtins.float and Output.dtype.kind == "f":
+            if not _Pyceler_Exact_Scalar(Value, Output.itemsize == 4):
+                return False
+        elif _Pyceler_Builtins.type(Value) is not _Pyceler_Builtins.int or not -16777216 <= Value <= 16777216:
+            return False
+    if Output.size == 0:
+        return True
+    if Output.dtype.kind == "f":
+        return _Pyceler_Float_Guards(Args, Reads, Scalars, Literals, Arithmetic, Comparison, Output.itemsize == 4)
+    if Literals:
+        return False
+    Bits = Output.itemsize * 8
+    Minimum = 0 if Output.dtype.kind == "u" else -(1 << (Bits - 1))
+    Maximum = Minimum + (1 << Bits) - 1
+    if Output.itemsize <= 2:
+        if any(Value < Minimum or Value > Maximum for Value in Integers) or any(not Minimum <= Args[Slot] <= Maximum for Slot in Scalars):
+            return False
+    if Arithmetic:
+        Bounds = {Slot: (Minimum, Maximum) for Slot in Reads}
+        for Slot in Scalars:
+            Bounds[Slot] = (Args[Slot], Args[Slot])
+        Proven = True
+        for Recipe in Arithmetic:
+            Low, High = _Pyceler_Interval(Recipe, Bounds)
+            if Low < Minimum or High > Maximum:
+                Proven = False
+                break
+        if Proven:
+            return True
+        for Slot in Reads:
+            Bounds[Slot] = _Pyceler_Integer_Bounds(Args[Slot])
+        for Recipe in Arithmetic:
+            Low, High = _Pyceler_Interval(Recipe, Bounds)
+            if Low < Minimum or High > Maximum:
+                return False
+    return True
+from libc.string cimport memmove as _Pyceler_Memmove
+
+cdef bint _Pyceler_Copy_Bytes(object Source, object Output, object Baseline) except -1:
+    import builtins as B
+    cdef const unsigned char[::1] Input_View
+    cdef unsigned char[::1] Output_View
+    if B.type(Output) is not B.bytearray or not _Pyceler_Byte_Source(Source, Output) or not _Pyceler_Bindings(Baseline):
+        return False
+    if B.len(Source) != B.len(Output):
+        return False
+    Input_View = Source
+    Output_View = Output
+    if Output_View.shape[0]:
+        _Pyceler_Memmove(&Output_View[0], &Input_View[0], Output_View.shape[0])
+    return True
+
