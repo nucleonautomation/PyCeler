@@ -36,3 +36,4 @@ class Loop_Finding:
     Constraints: tuple[str, ...] = ()
     Transformations: tuple[str, ...] = ()
     Diagnostics: tuple[_Loop_Diagnostic, ...] = ()
+    Plan: object | None = None

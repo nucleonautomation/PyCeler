@@ -23,8 +23,10 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
     while Prefix in Text:
         Prefix += "X"
     Map_Kernels = []
+    Math_Kernels = []
     Scalar_Kernels = []
     Has_Scalar_Regions = False
+    Has_Module_Scalars = False
     Specials = []
     Streams = []
     Structures = []
@@ -37,6 +39,7 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
     Has_Parallel_Scalar = False
     Tables = []
     Has_Scalar_Sizing = False
+    Future_Features = tuple(Alias.name for Statement in Tree.body if isinstance(Statement, ast.ImportFrom) and Statement.module == '__future__' for Alias in Statement.names)
     for Line in sorted(Edits, reverse=True):
         Names, Node, Function, Plan = Edits[Line]
         Region = Plan is not None and Plan.get("Region", False)
@@ -46,6 +49,27 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
         Codes = {Mode for Rows in Table.values() for Size, Mode in Rows} if Table else set()
         Modes = {4 if Code >= 10000 else 2 if Code >= 100 else Code for Code in Codes}
         Native = Table is None or bool(Modes & {1, 2, 3, 4})
+        if Kind == 'math_map' and not Native:
+            continue
+        if Kind == "module_scalar":
+            if not Native:
+                continue
+            Has_Module_Scalars = True
+            Has_Scalar_Regions = True
+            Has_Parallel_Scalar |= Plan['Module_Reduction'] is not None
+            Threads = Parallel and (Table is None or 2 in Modes) and Plan['Module_Reduction'] is not None
+            Has_Parallel |= Threads
+            Scalar_Kernels.append(_Module_Scalar_Kernel(Plan, Line, Threads, str(File), Prefix, Table is not None, Future_Features))
+            Policy = 'None'
+            if Table is not None:
+                Tables.append(f'{Prefix}Table_{Line} = {Table!r}')
+                Policy = f'{Prefix}Table_{Line}'
+            Indent = Lines[Line - 1][:len(Lines[Line - 1]) - len(Lines[Line - 1].lstrip(' \t'))]
+            Replacement = [Indent + Text for Text in _Module_Constant_Anchor(Node, Line, Prefix).splitlines()]
+            Replacement.append(f'{Indent}{Prefix}Module_Run_{Line}({Prefix}Module_Namespace(), {ast.unparse(Node.iter)}, {Threads}, {Policy}, {Prefix}Module_Constants_{Line}.__code__)')
+            Replacement.extend(Indent + Text for Statement in Node.orelse for Text in ast.unparse(Statement).splitlines())
+            Lines[Line - 1:Node.end_lineno] = Replacement
+            continue
         if Kind == "scalar_region":
             if not Native:
                 continue
@@ -57,7 +81,7 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
             Replacement = _Scalar_Region_Source(Plan, Node, Line, Prefix, Table)
             Lines[Line - 1:Node.end_lineno] = [Indent + Value for Value in Replacement.splitlines()]
             continue
-        Threads = Parallel and (Table is None or 2 in Modes) and Kind not in ("receive", "span") and (Kind != "scalar" or bool(Plan.get("Parallel_Reduction")))
+        Threads = Parallel and (Table is None or 2 in Modes) and Kind not in ("receive", "span") and (Kind != 'math_map' or bool(Plan.get('Fast_Math'))) and (Kind != "scalar" or bool(Plan.get("Parallel_Reduction")))
         Has_Parallel |= Threads
         if not Native:
             Helper = ""
@@ -86,6 +110,9 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
         elif Kind == "median":
             Numerics.append(_Median_Kernel(Plan, Line, Threads))
             Helper = f"{Prefix}Median_{Line}"
+        elif Kind == 'math_map':
+            Math_Kernels.append(_Math_Map_Kernel(Plan, Line, Threads))
+            Helper = f'{Prefix}Math_Map_{Line}'
         elif Plan.get("Kind") == "scalar":
             Scalar_Kernels.append(_Scalar_Kernel(Plan, Line, Threads))
             Has_Parallel_Scalar |= bool(Plan.get("Parallel_Reduction"))
@@ -93,7 +120,7 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
         else:
             Map_Kernels.append(_Map_Kernel(Plan, Line, Threads, Choices is not None))
             Helper = f"{Prefix}Map_{Line}"
-        Counts = sorted(Code - 100 for Code in Codes if 100 <= Code < 10000) if Threads else []
+        Counts = sorted(Code - 100 for Code in Codes if 100 <= Code < 10000) if Threads and Kind != 'math_map' else []
         if Counts:
             if Plan is None or Plan.get("Clear"):
                 Tuned_Clear.update(Counts)
@@ -113,7 +140,14 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
             Indent = "    "
         else:
             Original = ast.get_source_segment(Text, Function)
-            Lines.insert(Function.end_lineno, f"cdef object {Baseline} = {Prefix}Baseline({Original!r}, {Function.name}, {File.name!r})")
+            Baseline_Value = f'{Prefix}Baseline({Original!r}, {Function.name}, {File.name!r})'
+            if Kind == 'math_map':
+                Pool = f'{Prefix}Math_Literals_{Line}'
+                Pool_Source = f'{Pool} = {_Math_Map_Constant_Source(Plan)}'
+                Baseline_Value = f'{Prefix}Math_Baseline_{Line}({Baseline_Value}, {Pool})'
+                Lines.insert(Function.end_lineno, Pool_Source + '\n' + f'cdef object {Baseline} = {Baseline_Value}')
+            else:
+                Lines.insert(Function.end_lineno, f'cdef object {Baseline} = {Baseline_Value}')
         Inner = Indent + ("\t" if "\t" in Indent else "    ")
         Body = []
         Scalar = Plan is not None and Plan.get("Kind") == "scalar"
@@ -148,6 +182,8 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
                 Parameters.append((Choice if Table is not None else ("2" if Threads else "3")) if Kind == "structural" else (Flag if Threads else "False"))
             elif Threads:
                 Parameters.append(Flag)
+            if Kind == 'math_map':
+                Parameters.append(f'({Configuration} - 100 if 100 <= {Configuration} < 10000 else 0)' if Table is not None and Customized else '0')
             if Kind == "stencil":
                 Parameters.append(f"{Choice} == 4" if Table is not None else "False")
                 Parameters.append(f"({Configuration} - 10000 if {Configuration} >= 10000 else 32)" if Table is not None else "32")
@@ -155,7 +191,7 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
         Call_Start = len(Body)
         if not Native:
             Body.append(f"{Indent}return {Baseline}({Arguments})")
-        elif Scalar or Kind in ("stencil", "count", "receive", "span", "projection", "row_selection", "structural", "median"):
+        elif Scalar or Kind in ("stencil", "count", "receive", "span", "projection", "row_selection", "structural", "median", "math_map"):
             Body.append(f"{Indent}return {Call}")
         else:
             Body.extend([f"{Indent}if not {Call}:", f"{Inner}return {Baseline}({Arguments})"])
@@ -177,8 +213,10 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
             End = Function.end_lineno if not Native else Node.end_lineno
             Lines[Start - 1:End] = Body
     Header = []
+    if Has_Module_Scalars:
+        Header.append(_Resource('Module_Runtime.pxi.in').replace('_Pyceler_', Prefix))
     if Has_Scalar_Regions:
-        Header.append(_Resource("Scalar_Region_Runtime.pxi.in").replace("REGION_FILENAME", repr(File.name)).replace("_Pyceler_", Prefix))
+        Header.append(_Resource("Scalar_Region_Runtime.pxi.in").replace("_Pyceler_", Prefix).replace("REGION_FILENAME", repr(File.name)))
     if Has_Scalar_Sizing:
         Header.append(_Scalar_Sizing_Runtime.replace("_Pyceler_", Prefix))
     if Tables:
@@ -203,6 +241,7 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
         Imports += "\nfrom openmp cimport omp_in_parallel as _Pyceler_In_Parallel, omp_get_max_threads as _Pyceler_Max_Threads, omp_get_num_threads as _Pyceler_Reduction_Team, omp_get_dynamic as _Pyceler_Dynamic"
     Common = _Resource("Kernel_Common.pxi.in")
     Parts = [Common.replace("KERNEL_IMPORT", Imports)]
+    Parts.extend(reversed(Math_Kernels))
     if Has_Clear:
         Clear = _Resource("Clear_Kernel.pxi.in")
         Chunk = "1 + (Size - 1) // _Pyceler_Max_Threads()" if Choices is not None else "65536"
@@ -228,7 +267,7 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
         if Has_Parallel_Scalar:
             Parts.append(_Resource("Scalar_Parallel_Runtime.pxi.in"))
         Parts.extend(reversed(Scalar_Kernels))
-    Native_Source = "\n".join(Header) + "\n" + "\n".join(Parts).replace("_Pyceler_", Prefix)
+    Native_Source = "\n".join(Header) + "\n" + _Native_Prefix("\n".join(Parts), Prefix)
     return _Python_Module("\n".join(Lines), Native_Source, File, Prefix)
 
 cdef str _Parallel_Body = """    cdef Py_ssize_t Block, Offset, Length, Chunk, Chunks

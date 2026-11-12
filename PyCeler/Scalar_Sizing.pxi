@@ -48,17 +48,17 @@ def _Scalar_Size_Plan(Plan):
                 break
             Start = (False, 0) if len(Call.args) == 1 else _Scalar_Size_Operand(Call.args[0], Names)
             Stop = _Scalar_Size_Operand(Call.args[0 if len(Call.args) == 1 else 1], Names)
-            Step = (False, 1) if len(Call.args) < 3 else _Scalar_Size_Operand(Call.args[2], ())
-            if Start is None or Stop is None or Step is None or not Step[1]:
+            Step = (False, 1) if len(Call.args) < 3 else _Scalar_Size_Operand(Call.args[2], Names)
+            if Start is None or Stop is None or Step is None or not Step[0] and not Step[1]:
                 Complete = False
                 break
-            Dependencies = {Names[Operand[1]] for Operand in (Start, Stop) if Operand[0]}
+            Dependencies = {Names[Operand[1]] for Operand in (Start, Stop, Step) if Operand[0]}
             Overwritten = Dependencies & _Scalar_Size_Overwritten(Plan.get("Size_Function"), Loop)
             if Overwritten:
                 Complete = False
                 break
-            Ranges.append((*Start, *Stop, Step[1]))
-            for Operand in (Start, Stop):
+            Ranges.append((*Start, *Stop, Step if Step[0] else Step[1]))
+            for Operand in (Start, Stop, Step):
                 if Operand[0] and Operand[1] not in Arguments:
                     Arguments.append(Operand[1])
             Slot = Stop[1] if Stop[0] else Start[1] if Start[0] else None
@@ -95,7 +95,7 @@ def _Scalar_Size_Plan(Plan):
     elif not Ranges and not Bounds:
         Reason = "No direct input-dependent range or comparison bound; use one fixed-workload band without guessing an argument."
     elif Complete:
-        Reason = "Exact product of rectangular range lengths, including start offsets and literal steps."
+        Reason = "Exact product of rectangular range lengths, including start offsets and snapshotted integer steps."
     else:
         Reason = "Range lengths and explicit comparison bounds estimate the outer workload; data-dependent inner work is not an exact iteration count."
     return dict(Ranges=Ranges, Bounds=Bounds, Arguments=Arguments, Vary=Vary, Exact=Complete and not Bounds, Reason=Reason, Overwritten_Arguments=sorted(Overwritten))
@@ -110,7 +110,8 @@ def _Scalar_Workload_Size(Sizing, Args):
     for Start_Argument, Start, Stop_Argument, Stop, Step in Sizing["Ranges"]:
         Begin = Args[Start] if Start_Argument else Start
         End = Args[Stop] if Stop_Argument else Stop
-        if type(Begin) is not int or type(End) is not int:
+        Step = Args[Step[1]] if isinstance(Step, (tuple, list)) else Step
+        if type(Begin) is not int or type(End) is not int or type(Step) is not int or Step == 0:
             return 0
         Count = max(0, (End - Begin + Step - 1) // Step) if Step > 0 else max(0, (Begin - End - Step - 1) // -Step)
         Size *= Count
@@ -130,6 +131,7 @@ def _Scalar_Size_Cases(Item):
     for Count in Targets:
         Args = [2] * Item["Arguments"]
         for Start_Argument, Start, Stop_Argument, Stop, Step in Sizing["Ranges"]:
+            Step = Args[Step[1]] if isinstance(Step, (tuple, list)) else Step
             if Stop_Argument and not (Start_Argument and Start == Stop):
                 Begin = Args[Start] if Start_Argument else Start
                 Args[Stop] = Begin + Count * Step
@@ -149,7 +151,8 @@ cdef str _Scalar_Sizing_Runtime = """cdef object _Pyceler_Scalar_Size(tuple Args
     for Start_Argument, Start, Stop_Argument, Stop, Step in Ranges:
         Begin = Args[Start] if Start_Argument else Start
         End = Args[Stop] if Stop_Argument else Stop
-        if B.type(Begin) is not B.int or B.type(End) is not B.int:
+        Step = Args[Step[1]] if B.isinstance(Step, (B.tuple, B.list)) else Step
+        if B.type(Begin) is not B.int or B.type(End) is not B.int or B.type(Step) is not B.int or Step == 0:
             return 0
         if Step > 0:
             Count = (End - Begin + Step - 1) // Step if End > Begin else 0

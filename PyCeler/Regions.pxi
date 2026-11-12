@@ -1,4 +1,5 @@
 from dataclasses import replace
+from .Common_Analysis import _Definite_Bindings
 
 cdef object _Region_Function(object Function, list Statements, tuple Names, str Result):
     Definition = ast.parse(f"def {Function.name}({', '.join(Names)}):\n    pass").body[0]
@@ -103,6 +104,10 @@ cdef void _Region_Block(object Function, list Statements, set Entering, dict Edi
         if isinstance(Node, ast.Assign):
             for Target in Node.targets:
                 Bound.update(_Assigned(Target))
+        elif isinstance(Node, ast.If):
+            Branch_Bound = _Definite_Bindings((Node,), Bound)
+            if Branch_Bound is not None:
+                Bound.update(Branch_Bound)
         elif isinstance(Node, ast.Try) and all(Handler.body and isinstance(Handler.body[-1], (ast.Raise, ast.Break, ast.Continue, ast.Return)) for Handler in Node.handlers):
             for Part in Node.body:
                 if isinstance(Part, ast.Assign):

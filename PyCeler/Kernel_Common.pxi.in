@@ -5,6 +5,11 @@ cdef extern from "Python.h":
     char _Pyceler_Range_Type "PyRange_Type"
     char _Pyceler_Int_Type "PyLong_Type"
     bint _Pyceler_Is_C_Function "PyCFunction_Check"(object)
+    int _Pyceler_Checkpoint_Expression "Py_eval_input"
+    object _Pyceler_Checkpoint_Compile "Py_CompileString"(const char*, const char*, int)
+    object _Pyceler_Checkpoint_Evaluate "PyEval_EvalCode"(object, object, object)
+
+cdef object _Pyceler_Scheduler_Yield = _Pyceler_Checkpoint_Evaluate(_Pyceler_Checkpoint_Compile(b"lambda: None", b"<PyCeler checkpoint>", _Pyceler_Checkpoint_Expression), {}, {})
 
 cdef object _Pyceler_Baseline(str Source, object Native, str Filename, object Name=None):
     import builtins as _Pyceler_Builtins

@@ -20,21 +20,41 @@ cdef void _Pyceler_Region_Declined():
 cdef bint _Pyceler_Region_Range(object Value, object Step):
     import builtins as _Pyceler_Builtins
     Type = _Pyceler_Builtins.type(Value)
-    return <void*>Type == <void*>&_Pyceler_Range_Type and Value.step == Step
+    return <void*>Type == <void*>&_Pyceler_Range_Type and (Step is None or Value.step == Step)
+
+def _Pyceler_Region_Divisor(object Left, object Right):
+    if Left < 0:
+        Left = -Left
+    while Right:
+        Left, Right = Right, Left % Right
+    return Left
+
+def _Pyceler_Region_Inverse(object Value, object Modulus):
+    Remainder, Current = Modulus, Value % Modulus
+    Coefficient, Previous = 0, 1
+    while Current:
+        Quotient = Remainder // Current
+        Remainder, Current = Current, Remainder - Quotient * Current
+        Coefficient, Previous = Previous, Coefficient - Quotient * Previous
+    return Coefficient % Modulus
+
+def _Pyceler_Region_Count(object Values):
+    Step = Values.step
+    if Step > 0:
+        return 0 if Values.start >= Values.stop else 1 + (Values.stop - 1 - Values.start) // Step
+    return 0 if Values.start <= Values.stop else 1 + (Values.start - 1 - Values.stop) // -Step
 
 def _Pyceler_Region_Spans(object Values, object Period):
-    import builtins as _Pyceler_Builtins
-    from math import gcd as _Pyceler_Gcd
     Step = Values.step
-    Count = 1 + ((Values.stop - 1 - Values.start) // Step if Step > 0 else (Values.start - 1 - Values.stop) // -Step)
+    Count = _Pyceler_Region_Count(Values)
     Position = 0
     Boundary = Count
     Interval = None
     if Period is not None:
-        Divisor = _Pyceler_Gcd(Step, Period)
+        Divisor = _Pyceler_Region_Divisor(Step, Period)
         if Values.start % Divisor == 0:
             Interval = Period // Divisor
-            Offset = (-Values.start // Divisor * _Pyceler_Builtins.pow(Step // Divisor, -1, Interval)) % Interval if Interval > 1 else 0
+            Offset = (-Values.start // Divisor * _Pyceler_Region_Inverse(Step // Divisor, Interval)) % Interval if Interval > 1 else 0
             Boundary = Offset + 1
     while Position < Count:
         End = Boundary if Boundary < Count else Count

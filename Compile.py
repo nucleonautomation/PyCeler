@@ -207,7 +207,9 @@ def Build_Wheel(Output_Directory=None, *, Library_Directory=None, Mode="abi", Py
     Contents = {Name: (Package.parent / Name).read_bytes() for Name in sorted(Report["Files"])}
     Contents[Metadata_Directory + "/METADATA"] = (f"Metadata-Version: 2.4\nName: PyCeler\nVersion: {Version}\nSummary: Measured native specialization of Python numeric loops\n"
                                                     "Requires-Python: >=3.11\nLicense-Expression: MIT\nLicense-File: LICENSE.md\n"
-                                                    "Requires-Dist: Cython>=3.1\nRequires-Dist: setuptools\nRequires-Dist: numpy; extra == 'test'\nProvides-Extra: test\n").encode("utf-8")
+                                                    "Requires-Dist: Cython>=3.1\nRequires-Dist: setuptools\nRequires-Dist: numpy; extra == 'test'\nProvides-Extra: test\n"
+                                                    "Project-URL: Source, https://github.com/nucleonautomation/PyCeler\n"
+                                                    "Description-Content-Type: text/markdown\n\n" + (Root / "README.md").read_text(encoding="utf-8")).encode("utf-8")
     Contents[Metadata_Directory + "/WHEEL"] = (f"Wheel-Version: 1.0\nGenerator: PyCeler {Version}\nRoot-Is-Purelib: false\nTag: {Tag}\n").encode("utf-8")
     Contents[Metadata_Directory + "/licenses/LICENSE.md"] = (Root / "LICENSE.md").read_bytes()
     Contents[Metadata_Directory + "/PyCeler.manifest.json"] = json.dumps(Report, indent=2, sort_keys=True).encode("utf-8")

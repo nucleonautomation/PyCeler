@@ -42,7 +42,7 @@ cdef tuple _Probe_Item(int Line, tuple Edit, bint Parallel):
     Definition.returns = None
     for Arg in Definition.args.posonlyargs + Definition.args.args:
         Arg.annotation = None
-    Scalar = Plan is not None and Plan.get("Kind") in ("scalar", "scalar_region")
+    Scalar = Plan is not None and Plan.get("Kind") in ("scalar", "scalar_region", "module_scalar")
     Loops = [Node] if Plan is None else Plan["Loops"]
     Item = dict(Function=Plan["Scope"] if Region else Function.name, Line=Line, End_Line=Node.end_lineno if Region else Function.end_lineno, Loops=len(Loops),
                 Loop_Lines=[Loop.lineno for Loop in Loops], Kind="scalar" if Scalar else "array",
@@ -56,15 +56,18 @@ cdef tuple _Probe_Item(int Line, tuple Edit, bint Parallel):
         Item.update(Kind="span", Mode=Plan["Mode"], Skipped_Candidates={"OpenMP": "Contiguous byte span operation runs serially"})
     elif Scalar:
         Item["Size_Arguments"] = _Size_Arguments(Plan)
-        if Plan.get("Kind") == "scalar_region":
+        if Plan.get("Kind") in ("scalar_region", "module_scalar"):
             Item["Range_Start_Argument"] = 1
             Item["Range_Step"] = Plan["Step"]
             Period = Plan.get("Period")
-            Item["Span_Maximum"] = Period // math.gcd(Plan["Step"], Period) if Period is not None else None
+            if Plan["Step"] is None:
+                Item["Range_Step_Argument"] = Plan["Step_Argument"]
+                Item["Range_Period"] = Period
+            Item["Span_Maximum"] = Period // math.gcd(Plan["Step"], Period) if Period is not None and Plan["Step"] is not None else None
             Item["Workload"] = "Isolated pure numeric span; excludes surrounding Python calls and reporting"
         else:
             Item["Size_Plan"] = _Scalar_Size_Plan(Plan)
-        if Plan.get("Parallel_Reduction"):
+        if Plan.get("Parallel_Reduction") or Plan.get('Module_Reduction'):
             Item["Numerical_Contract"] = "Exact integer addition; runtime interval proof bounds every expression and every possible partial sum to int64"
             Item["Serial_Contract"] = "The same interval proof and unchecked integer term as OpenMP, accumulated sequentially"
             if Parallel:
@@ -75,6 +78,9 @@ cdef tuple _Probe_Item(int Line, tuple Edit, bint Parallel):
             Item["Skipped_Candidates"] = {"OpenMP": "Ordered scalar control flow has no proven parallel implementation"}
     else:
         Kind = Plan.get("Kind") if Plan is not None else None
+        if Kind == 'math_map':
+            Item.update(Math_Imports=Plan['Math_Imports'], Math_Functions=Plan['Math_Functions'], Numerical_Contract=Plan['Numerical_Contract'], Registry_Version=Plan['Registry_Version'])
+            Item['Unboxed_Math'] = Plan['Fast_Math']['Functions'] if Plan.get('Fast_Math') else ()
         if Kind == "median":
             Item.update(Kind="median", Transformations=Plan["Transformations"])
         if Kind == "structural":
@@ -107,10 +113,10 @@ cdef tuple _Probe_Item(int Line, tuple Edit, bint Parallel):
                 Item["Pixel_Dtypes"] = True
             if Plan is not None and "Dimension_Args" in Plan:
                 Item["Dimension_Args"] = [(Names.index(Name), Axis) for Name, Axis in Plan["Dimension_Args"].items()]
-        if Parallel:
+        if Parallel and (Kind != 'math_map' or Plan.get('Fast_Math')):
             Item["Eligible"].append("OpenMP")
         else:
-            Item["Skipped_Candidates"] = {"OpenMP": "Disabled by caller"}
+            Item["Skipped_Candidates"] = {"OpenMP": "Ordered original library calls require the GIL and original mutation order" if Kind == 'math_map' else "Disabled by caller"}
     return Item, ast.unparse(Definition)
 
 cdef dict _Probe_Builds(object Reference, list Items, object Folder, object Mode, object Version, dict Builds, tuple Variants=("Serial", "Optimized", "Tiled", "OpenMP"), bint Elide_Temporaries=False):
@@ -167,6 +173,7 @@ cdef dict _Probe_Builds(object Reference, list Items, object Folder, object Mode
                         Individual.mkdir(parents=True)
                         Single = Individual / "Reference.py"
                         Imports = ("import socket\n" if Item["Kind"] == "receive" else "") + (f"import numpy as {Item['NumPy_Alias']}\n" if Item.get("NumPy_Alias") else "")
+                        Imports += '\n'.join(Item.get('Math_Imports', ())) + '\n'
                         Single.write_text(Imports + Definitions[Name] + "\n", encoding="utf-8")
                         Outcome = {}
                         Retry = _Probe_Builds(Single, [Item], Individual, Mode, Version, Outcome, (Variant,), Elide_Temporaries)
@@ -294,6 +301,7 @@ cdef tuple _Select_Items(object File, tuple Prepared, object Folder, object Mode
     Reference = Folder / "Reference.py"
     Imports = "import socket\n" if any(Item["Kind"] == "receive" for Item in Items) else ""
     Imports += "".join(f"import numpy as {Alias}\n" for Alias in sorted({Item["NumPy_Alias"] for Item in Items if "NumPy_Alias" in Item}))
+    Imports += '\n'.join(sorted({Import for Item in Items for Import in Item.get('Math_Imports', ())})) + '\n'
     Reference.write_text(Imports + "\n\n".join(Definitions) + "\n", encoding="utf-8")
     Variants = tuple(_Candidate_Order({Candidate for Item in Items for Candidate in Item["Eligible"]}))
     Modules = _Probe_Builds(Reference, Items, Folder, Mode, Version, Builds, Variants, Elide_Temporaries)

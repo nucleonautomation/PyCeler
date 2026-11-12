@@ -1,5 +1,21 @@
 # Running the PyCeler tests
 
+The current release source is **0.3.0**. Its version assertions and wheel metadata fixtures are aligned with that version. Runtime tests and benchmarks have not been run for this release; the 0.2.0 results below are historical and do not establish 0.3.0 qualification.
+
+Testing and benchmarks are stopped at the user's request on 2026-11-12. The commands below document how to resume after renewed authorization. Newly integrated binary-math source and tests have not run; the results below qualify the earlier installed ba1 checkpoint. Linux's full suite was interrupted when its registered WSL disk disappeared, so its full-suite/wheel qualification remains incomplete.
+
+## Historical 0.2.0 qualification — 2026-11-12
+
+Build ba1f9696 is installed and delivered locally, with version 0.2.0 unchanged. Both full Windows interpreter suites discovered 271 tests: 269 passed and two POSIX-only ownership checks were skipped on each. Python 3.14 took 1020.834 seconds (`Test_Run/Run_kkg5qexw/Results.txt`); isolated Python 3.11 took 1107.706 seconds (`Test_Run/Run_8sbovsvt/Results.txt`, build d101c94f). `Test_Run/Resume_Full_Suites_20261112.json` verifies all 63 maintained package source hashes and 20 artifacts for each build.
+
+Both exact-wheel pipeline probes passed in `Test_Run/Resume_Wheel_314_20261112` and `Test_Run/Resume_Wheel_311_20261112`; the latter also passed all 14 additional same-artifact checks. Observer reports passed 30/30 each at `Test_Run/Math_Observers_7ems8ihw/Verification_nc6655qi/Results.json` (3.14) and `Test_Run/Resume_Observers_Corpus_311_20261112/Verification_rqj7g3cc/Results.json` (3.11). The second report reuses the hash-verified binary retained from the successful full suite.
+
+The unchanged user benchmark passed three interleaved complete imports per candidate with exact final globals and all nine progress values. Default measured conversion won with median 0.116342 seconds, 1,530 native parallel spans, actual team eight and one tiny Python span. The separate two-worker candidate took 0.1258658 seconds. `Test_Run/Resume_Installed_20261112/Results.json` records the selection; the delivered runner reproduces the winning runtime environment and checks its actual counters. Downloads/Benchmark.py remains unchanged; Downloads/Benchmark.pyx contains the verified generated code.
+
+Fresh nine-sample math reports are `Test_Run/Math_Benchmark_wovm2kpt/Results.json` and `Test_Run/Erf_Benchmark_v6b1h7mb/Results.json`. They preserve exact output bits and observed native elements/teams. Small inputs favor Python. All 1,131 Python loop forms in 139 maintained files are accounted for in `Test_Run/Coverage_Baseline_doio90rz/Summary.json` (1,140 total findings, sources unchanged). Static accounting does not establish native execution.
+
+New maintained regressions cover extracted runtime strides, branch bindings, captured-range small-loop bypass, unary integer/boolean zero signs, module/literal floating status, erf/erfc backend gates and opt-in compiler deadlines. Run `python -B Test/Benchmark_Dynamic_Strides.py` and `python -B Test/Benchmark_Erf.py` for the corresponding raw-candidate measurements. The complete Windows suites qualify these additions; Linux ARM64 under WSL is now being tested from a separate hash-verified snapshot. Linux AMD64 and the wider roadmap remain open. Historical reports below retain their original build identities.
+
 From the project root on Windows, build the engine and run the tests.
 
 ```powershell
@@ -10,6 +26,74 @@ python -B Compile.py
 On Linux AMD64 or ARM64, run `python3 -B Compile.py` followed by `python3 -B Test/Run.py`. The build writes the complete compiled library to `Build/Lib/PyCeler`; checkout imports use that package rather than an in-place engine binary. Install Cython, setuptools and NumPy in the test interpreter and provide the platform compiler and OpenMP runtime. The suite builds and imports real native modules in disposable directories under `Test_Run/`.
 
 Use `python -B Test/Run.py --no-wheels` or `.\Test\Run.ps1 --no-wheels` when wheel creation is deferred. The report names the two excluded wheel-producing tests. All other tests, including the compiler ABI-tag check, remain enabled.
+
+## Disposable Docker testing
+
+Run the maintained Docker launcher from the project root on Windows or Linux:
+
+```powershell
+python -B Test/Run_Docker.py --no-wheels
+python -B Test/Run_Docker.py --architecture all --python all --no-wheels
+```
+
+The default is Linux AMD64 with Python 3.14. The second command runs AMD64 and ARM64 with Python 3.11 and 3.14 sequentially. Omit `--no-wheels` to include wheel-producing tests. `--timeout 7200` increases the per-container build/test deadline from one hour to two hours. ARM64 on an AMD64 host requires Docker emulation and does not qualify native ARM64 performance or replace native CI.
+
+Keep `cython_linux_amd:latest` and `cython_linux_arm:latest` for the existing Python 3.14 toolchains, and the `python:3.11-trixie` platform variants for AMD64 and ARM64. The custom Cython images must already exist. The full Python 3.11 image supplies the compiler toolchain; Python dependencies are installed from `requirements.txt` plus NumPy inside each disposable container. Network access is required for dependency installation and any missing official image. `python:3.11-slim-trixie` is not used by this launcher. No database, browser, PHP or Singularity service is required for PyCeler.
+
+Each run stages a separate source copy and keeps its logs, native build and test reports under `Test_Run/Docker/Run_<id>/`. The original checkout and its Windows build are unchanged. Console logs sit directly in that directory; suite reports are under each platform/interpreter workspace's `Test_Run/`. Containers use `--rm`, unique `pyceler-test-*` names and the label `org.pyceler.test=true`. A `finally` cleanup also removes the specific owned container after failure, timeout or Ctrl+C. A daemon outage or forcibly terminated launcher can prevent that fallback; cleanup errors are reported and labelled containers can be inspected with `docker ps -a --filter label=org.pyceler.test=true`. The launcher never prunes images, volumes or other projects' containers.
+
+`Test_Docker_Lifecycle.py` is discovered by the existing runner and uses mocks to cover disposable arguments and cleanup after success, failure, timeout and interruption. It starts no Docker containers.
+
+## Coverage, module loops and math
+
+The broader analysis and numeric paths have these focused checks:
+
+```powershell
+python -B -m unittest Test.Test_Common_Analysis Test.Test_Coverage_References Test.Test_Scalar_Control Test.Test_Module_Scalar Test.Test_Math_Registry Test.Test_Math_Maps Test.Test_Fast_Math -v
+```
+
+`Coverage_Loops.py` supplies independent for/while, nested, enumerate/zip, comprehension, generator/async, callback, method, array and simulated transport cases. `Test_Common_Analysis.py` checks immutable/versioned plans, deterministic serialization, name-independent shape keys, dependencies, live values, conservative annotations and math-call effects. `Test_Coverage_References.py` verifies the reference results and event traces. Record a read-only coverage snapshot with:
+
+```powershell
+python -B Test/Inventory_Coverage.py
+python -B Test/Inventory_Coverage.py --input Test/Module_Nested_Loops.py --input Test/Fast_Math_Loops.py
+```
+
+The inventory writes input copies, SHA256 hashes, findings and capability rows to `Test_Run/Coverage_*/Coverage.json`. Static candidate status and actual native execution are separate fields. Additional `--input` files or directories can include Python and Cython sources; analysis does not import them. The historical external Xenonix checkout is not required for these maintained tests.
+
+`Test_Scalar_Control.py` exercises checked powers, bitwise operators/shifts, dynamic whole-function range strides, tuple assignment, conditional expressions, loop `else` and early returns. `Test_Module_Scalar.py`, `Module_Scalar_Loops.py` and `Module_Nested_Loops.py` compare fresh source/native imports, callback mutations, range snapshots, big integers, partial exceptions, nested module control flow, main guards, ordered float bits and actual OpenMP teams. Module and extracted-function `for...else` tests check normal completion, empty ranges and exception ordering. A numeric loop may be extracted from inside a Python exception handler or outer loop while that surrounding control flow stays in Python. Unknown inner control flow and function-local reporting values remain explicit boundaries.
+
+The math registry has separate records for recognition, runtime binding, ordered library-call loops and guarded unboxed evaluation. `Math_Map_Corpus.py` generates recipes for the available registered `math`, `cmath`, NumPy and numeric built-in callables. `Test_Math_Maps.py` checks compiled ordered loops with original library calls, aliases, constants, warnings, complex values, exceptions and mutations. This path retains the GIL and library algorithms. `Test_Fast_Math.py` and `Fast_Math_Probe.py` separately check the 24 implemented unary real-math functions, compositions, exact float64 bytes, binding changes, observers, domain failures, worker rounding/flush modes, actual teams and cache/selection behavior. A native-entry event alone does not imply that a library call was replaced by unboxed arithmetic; the fast-path counters report native and parallel element counts. Current platform/interpreter qualification is recorded in `Session.md` and the matching run reports.
+
+Ordered math and module execution call a cached CPython function every 1,024 iterations, allowing the interpreter to service pending thread handoff requests. This function executes ordinary Python bytecode while the caller holds the GIL; it avoids repeatedly releasing and immediately reacquiring the lock before a waiting thread requests a handoff. Module bulk spans retain their existing checkpoint behavior. The math corpus regression runs three fresh probe processes against one compiled binary. Each real competing worker waits for committed progress before replacing a math binding or raising SIGINT; the probe requires a nonempty original prefix, the expected replacement or untouched suffix, and no unboxed execution while these observers are active. The shared helper also has a compiled private-prefix collision regression that verifies it is an actual Python function.
+
+For repeated qualification, run `python -B Test/Verify_Math_Observers.py --repeats 30` separately under each interpreter being qualified, using its configured PyCeler package. This retains the source, recipes, compiled corpus, hashes and per-process results under `Test_Run/Math_Observers_*/`. Reuse an unchanged corpus without rebuilding with `python -B Test/Verify_Math_Observers.py --reuse Test_Run/Math_Observers_<id> --repeats 30`; each run writes a new verification directory. The retained corpus records its build interpreter, and cross-interpreter reuse additionally requires compatible dependencies and availability of every recorded library function.
+
+The earlier acd44d98 interpreter checkpoint passed all 30 fresh-process observer probes on each Windows interpreter: `Test_Run/Math_Observers_npyvrj3c/Verification__efk434p/Results.json` for 3.14 and `Test_Run/Math_Observers_yvxajmty/Verification_ema706qe/Results.json` for 3.11. Earlier fixed-timer races and genuine ordered-loop GIL starvation remain preserved in failed reports. The final probes require committed progress before acting and reject empty prefixes; an OS yield alone did not fix the observed 3.11 starvation. Both complete suites below include the checkpoint/private-prefix regression and progress-aware mutation/cancellation cases.
+
+The unboxed path evaluates each element once into bounded scratch storage before committing a valid block. Maintained probes check allocation-failure fallback, invalid-block discard and ordered continuation, full worker floating-point environment restoration, caller-visible standard IEEE exception flags and uneven work partitions when a requested 32-worker team is reduced to eight. The historical focused scratch-buffer run on build `8d2567701f1a7e53737a78cfbc0458f32398d3fe1677854f9c4005d5453fd304` passed all five FastMath tests, including 156 serial and 170 parallel exact comparisons. That report qualifies its earlier build; current integrated interpreter qualification is recorded below, and other-platform qualification remains open.
+
+To benchmark an existing module script without changing its bytes:
+
+```powershell
+python -B Test/Benchmark_Module_Scalar.py --input path/to/Benchmark.py --samples 3 --threads 2
+```
+
+This runner snapshots the input, builds serial and OpenMP variants before timing, then runs each variant in fresh processes. It compares final values and every progress result while excluding clock text, verifies native/parallel counters and the requested team, and records complete import times, build cost, binary paths, source hashes and raw output under `Test_Run/Module_Benchmark_*/`. The original script still runs as Python when launched directly.
+
+The earlier acd44d98 installed-package run of the unchanged 100-million-iteration `Downloads/Benchmark.py` passed three interleaved complete imports per candidate on build `acd44d98...`: `Test_Run/Installed_Fairness_Verification/Results.json`. Default measured conversion selected serial work, with median 0.2640124 seconds, 1,530 native spans and one tiny fallback. A separate candidate generated with `Select=False, OpenMP=True` and executed with two workers had median 0.1257394 seconds, 1,531 parallel spans, actual team two and zero fallback. All six samples preserved exact globals, the final result 49999504352964 and every progress total. The delivered `Parallel_Two` candidate was selected by this 2.10x complete-call gain over default; raw candidate generation itself remains explicitly unmeasured. Finalization replaced `Downloads/Benchmark.pyx` with the verified generated source and preserved the original `.py` bytes. This qualification is specific to the recorded source, build and host.
+
+For representative unboxed math workloads, run `python -B Test/Benchmark_Math.py --sizes 64 4096 262144 --samples 9 --threads 2`. It validates exact bytes and output identity, proves the native/parallel element counts for every call, warms up each candidate and interleaves full-call timings. Reports include medians, minima, variation and comparisons against Python and serial execution. Run either benchmark alone, without concurrent builds or tests.
+
+The earlier acd44d98 scratch-buffer benchmark is `Test_Run/Math_Benchmark_qlmliwn2/Results.json`, using build `acd44d98f702c728a84f2ad1dc9d35d97ecca6d53840fdb56cfdfed3a4c64210` on AMD64 CPython 3.14.8 on the recorded Windows ARM64 host. Nine samples per variant at 262,144 elements produced these complete-call medians:
+
+| Workload | Python | Serial | OpenMP, two workers | Serial/OpenMP gain over Python |
+| --- | ---: | ---: | ---: | ---: |
+| `sin` | 197.9733 ms | 94.0325 ms | 51.5145 ms | 2.11x / 3.84x |
+| Composed expression | 804.8911 ms | 544.8963 ms | 281.4901 ms | 1.48x / 2.86x |
+| `expm1` | 139.8810 ms | 54.4598 ms | 33.2214 ms | 2.57x / 4.21x |
+
+Every timed native call checked exact bytes and native element counts; OpenMP calls observed actual team two. The 64-element cases favored Python. These raw candidate timings include guards, scratch evaluation, commits and checkpoints, exclude compilation, and do not claim measured-selection dispatch for those workloads. `Test_Run/Math_Benchmark_f8d_vmai/Results.json` remains historical evidence for build `8d256770...`, whose corresponding serial/two-worker gains were 2.08x/3.90x, 1.49x/2.90x and 2.60x/4.76x. Its timings do not qualify later binaries.
 
 ## Where to find results
 
@@ -30,7 +114,7 @@ python -B -m unittest Test.Test_Parallel_Reductions Test.Test_Scalar_Strides Tes
 
 `Test_Parallel_Reductions.py` verifies real two-worker execution, exact signed modulo/floor results, every-expression and partial-sum overflow guards, zero divisors, empty loops, bigint fallback, background-thread serial execution, and tuned candidate validation. `Scalar_Parallel_Proof_Probe.py` independently enumerates randomized interval expressions and 1,500 complete reduction proofs, including shuffled accumulation order. Its private proof wrappers exist only in the generated test extension.
 
-`Test_Scalar_Strides.py` compares 5,670 signed start/stop/step/period combinations with a separate iteration oracle, then checks native function spans and original Python module loops, callback mutations, break/continue, exceptions and range shadowing. Descending selection probes must use iteration counts and reachable callback intervals.
+`Test_Scalar_Strides.py` compares 5,670 signed start/stop/step/period combinations with a separate iteration oracle, then checks native function/module spans, callback mutations, break/continue, exceptions and range shadowing. Descending selection probes must use iteration counts and reachable callback intervals.
 
 `python -B Test/Benchmark_Parallel_Reductions.py` builds Python-reference, serial and OpenMP variants before timing. It validates exact results, uses two warmups and seven interleaved complete-call samples by default, records proof-based serial entry and real two-worker entry, compares OpenMP with the same optimized serial arithmetic, and checks the final measured extension against each recorded dispatch decision. Results are saved to `Test_Run/Parallel_Reductions_*/Results.json`. Use `--iterations 100000 --samples 3` for a smaller run. Run benchmarks sequentially without concurrent native builds or tests.
 
@@ -81,7 +165,20 @@ Add cases in `Test_*.py` files using `unittest.TestCase` and `test_` methods. Th
 
 `Test_Package_Build.py`, `Test_Environment_Checker.py`, and `Test_Source_Bootstrap.py` cover the compiled-only distribution layout, resource embedding, interpreter-target checks, diagnostics and checkout import routing. Package publication tests import the builder from root `Compile.py` and use a mocked backend. `Test_Distribution.py` copies the built native modules and initializer into an isolated directory, then runs Analyze, Convert and measured Compile without helper sources or templates. The maintained `.github/workflows/Native_Regression.yml` covers native Windows x64, Linux AMD64 and Linux ARM64 on CPython 3.11 and 3.14, including the same stable-ABI artifact on the other interpreter. These jobs require an actual CI run; local Windows checks do not establish their results.
 
-The maintained suite contains **146 tests**. On 2026-11-10, the 0.2.0 Windows build passed **all 144 tests enabled by `--no-wheels` in 613.262 seconds**, with no failures or skips. The report explicitly lists the two excluded packaging tests. This run used AMD64 CPython 3.14.8 on Windows 11 build 26100, Cython 3.3.0 and MSVC. Post-run verification confirmed the version, source provenance and all 15 native module hashes. Results are in `Test_Run/Run_1apdn_7d/Results.txt` and `Test_Run/Verification_020/Integrity.json`. Linux and CPython 3.11 runtime qualification of this build remain open. Earlier audit and ABI-floor results are recorded separately in `Session.md`.
+Historical verification on 2026-11-10 passed **all 144 tests then enabled by `--no-wheels` in 613.262 seconds**, with no failures or skips; that suite had 146 tests including its two excluded packaging cases. It used AMD64 CPython 3.14.8, Windows 11 build 26100, Cython 3.3.0 and MSVC. Results were recorded in `Test_Run/Run_1apdn_7d/Results.txt` and `Test_Run/Verification_020/Integrity.json`. The broader coverage/module/math tests described above were added later. Use the current runner report and latest `Session.md` handoff for the actual test count, loaded build identity and verification status of the current checkout. Historical results do not qualify later source changes.
+
+The historical 2026-11-11 Windows suites passed **all 223 tests including wheel tests**, with no failures or skips, on the recorded ARM64 Windows host running AMD64 binaries:
+
+- CPython 3.14.8: 725.983 seconds, `Test_Run/Run_3v69jwwo/Results.txt`, build `acd44d98f702c728a84f2ad1dc9d35d97ecca6d53840fdb56cfdfed3a4c64210`.
+- Isolated CPython 3.11.9: 696.306 seconds, `Test_Run/Run_0syg_rtg/Results.txt`, build `2c464f2f8ba04e5a3ede9981d8a38fca670b15feee76328ba0eaad30294f08d9`.
+
+`Test_Run/ABI311/Qualification_Interpreter/Summary.json` records verified package artifact hashes, the preserved 3.11 snapshot and identical maintained package sources across these two builds; dependency versions are recorded separately. The 3.11 manifest is `Test_Run/ABI311/Qualification_Interpreter/Lib/PyCeler.manifest.json`. These are separately built interpreter qualifications.
+
+The exact current delivery wheel also passed isolated public Analyze/Convert/Compile/OpenMP probes on 3.14 and 3.11, both with actual team two. Reports are `Test_Run/Interpreter_Wheel_314/Installed_Wheel.json` and `Test_Run/Interpreter_Wheel_311/Installed_Wheel.json`; both identify build `acd44d98...` and wheel SHA256 `aea98c4db6bac1f7344dc58226e47d80aed0512dbb8f5021f2954cabb752ae69`. All eight same-artifact 3.11 observation/checkpoint/math-selection checks passed in 27.570 seconds, recorded in `Test_Run/Interpreter_Wheel_311/Observation.json` and `Test_Run/Interpreter_Wheel_311_Observation.log`. The main 3.14 installation passed all 20 manifest artifact hashes; `Test_Run/Installed_Fairness_Verification/Installation.json` and `Test_Run/Interpreter_Installation_Verification.log` record its exact package path, build and source fingerprint. The fresh installed module benchmark also passed, as recorded above. These same-artifact checks supplement the complete interpreter suites; Windows execution does not qualify unexecuted Linux or physical-host configurations.
+
+Historical 216-test runs remain at `Test_Run/Run_xl91t49w/Results.txt` (3.14, 628.412 seconds) and `Test_Run/Run_zgjefz_j/Results.txt` (3.11, 718.648 seconds), with the older 3.11 summary in `Test_Run/ABI311/Qualification/Summary.json`. An earlier signal-test timer fired after module completion; its report remains preserved. The progress-aware probe retains all mutation/cancellation assertions and deliberately delays preparation. Later ordered-math observer failures led to the interpreter-checkpoint fix and the historical 223-test and 30-probe qualifications, rather than being treated as passing historical evidence.
+
+The earlier acd44d98 static coverage refresh in `Test_Run/Coverage_Baseline_np9d7gpp/Coverage.json` and `Summary.json` snapshots 115 maintained Test sources and reports 889 findings. An independent AST count accounts for all 880 Python loop forms, with nine Cython findings handled separately and no source-byte changes. The hash-verified isolated analyzer is build `acd44d98f702c728a84f2ad1dc9d35d97ecca6d53840fdb56cfdfed3a4c64210`. Static rows explicitly mark native execution as unobserved; actual entry evidence comes from differential/native tests and benchmarks. The earlier 113-source, 871-finding, 862-form snapshot remains preserved under `Test_Run/Coverage_Baseline_xj0t94tk/`.
 
 The final fair reduction benchmark used two warmups and seven interleaved complete-call samples. At two million iterations, modulo medians were 767.4053 ms Python, 13.6751 ms proof-based serial and 7.6757 ms two-worker OpenMP: 1.78x over serial. Exact results, real teams and all seven selected dispatch decisions were checked. These are host-specific measurements, with compilation excluded.
 
@@ -89,7 +186,7 @@ For a source-only check, run `python -B Test/Check_Syntax.py`. It parses maintai
 
 ## Audit regression coverage
 
-`Test_Observable_Semantics.py` reproduces modulo/input/loop-index identity, exact unsupported-function exceptions, returning signal handlers that mutate module globals, and cancellation with visible partial state. Module loops remain in CPython; function-local spans still run natively.
+`Test_Observable_Semantics.py` reproduces modulo/input/loop-index identity, exact unsupported-function exceptions, returning signal handlers that mutate module globals, and cancellation with visible partial state. Eligible module arithmetic can run natively with observable-state continuation; unsupported operations and failed guards preserve Python execution.
 
 `Test_Generated_Scalar_Programs.py` generates 54 programs from arithmetic, ordered-loop, identity and callback forms, then compares 10,422 cases per serial/OpenMP binary. This complements fixed-fixture input randomization. `Test_Selection_Safety.py` checks nested identity graphs, cycles, view backing storage, byte limits, budget ordering and live OpenMP setting changes. Cases include inconclusive outcomes instead of silently promoting timed-out workloads.
 
@@ -133,6 +230,8 @@ Install GCC/G++, Python development headers and the OpenMP runtime through that 
 
 `Test_Selection.py` exercises the default measured conversion and compilation paths, including three actual candidates on independent arrays, grouped loop findings, exact result and mutation checks, optional build failures, Python wins, and bounded probing of a nonterminating function. `Selection_Probe.py` imports the final extension in a fresh process and checks each measured case against its recorded dispatch decision. A second import changes the thread environment and checks Python fallback. The raw-kernel regression cases explicitly pass `Select=False`.
 
+`Test_Selection_Observation.py` checks that selection observations use fresh dispatch events or counter changes, never stale statistics from an unrelated kernel. For module calls containing both native and fallback spans, `Native_Entry` and `Python_Fallback` each record whether that behavior occurred anywhere in the call. `Actual_Mode` records the final dispatch event, while `Actual_Team` records the last native span's observed team when native work occurred. Thus a call ending in fallback can correctly report `Native_Entry: true`, `Python_Fallback: true`, `Actual_Mode: "python_fallback"` and a nonzero `Actual_Team`. Its measured module regression requires valid serial and OpenMP candidates to report their actual native teams without requiring a particular timing winner.
+
 To produce an inspectable selection report and generated source for scalar counting and nested arrays, run the following from the project root.
 
 ```powershell
@@ -170,6 +269,12 @@ py -3.11 -B Test/Verify_ABI.py Test_Run/ABI/Native
 ```
 
 `Verify_ABI.py` imports the actual package from `Build/Lib`, exercises Analyze and Convert, checks four scalar cases and twelve typed-array calls, and asserts that the array cases avoid Python fallback. It writes `ABI_<minor>.json` beside the native output directory. Its optional `--numpy DIRECTORY` supports a separate runtime-specific dependency directory. On Linux use the corresponding installed Python executable.
+
+A local isolated Windows CPython 3.11.9 runtime was prepared under `Test_Run/ABI311/python.3.11.9/tools/python.exe` for this qualification work, with Cython 3.3.0, setuptools 84.2.1 and NumPy 2.4.6. `Test_Run/ABI311/Runtime.json` records its source, package hash and verified Python Software Foundation executable signature. The 3.11 smoke reports in `Test_Run/ABI311/Smoke/` verify the recorded 3.14-built package snapshot, native scalar/array calls, exact math output and actual team-two module/math execution. They are smoke checks rather than a complete 3.11 regression run, and their build ID must be compared with the current package before reuse.
+
+The later full 3.11 qualification uses its own dependency-matched package under `Test_Run/ABI311/Qualification/Lib`, selected through `PYCELER_LIBRARY_DIR`; it leaves the normal `Build/Lib` package unchanged. The clean suite report and source/artifact comparison are recorded above. This is a full regression run of the 3.11-built package; importing a delivered 3.14-built wheel on 3.11 remains a distinct stable-ABI check.
+
+That distinct delivered-wheel check also passed on both interpreters: `Test_Run/Delivered_Wheel_314/Installed_Wheel.json` and `Test_Run/Delivered_Wheel_311/Installed_Wheel.json` record isolated public `Analyze`, `Convert`, `Compile` and actual OpenMP execution using the delivered artifact. These installed-wheel probes supplement the two full suites; they do not constitute a full suite against the same wheel on both interpreters.
 
 ## Classic image processing and EnIP transport
 

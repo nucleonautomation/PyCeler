@@ -61,9 +61,7 @@ cdef object _Scalar_Division_Plan(object Function):
             return None
         Begin = "0" if len(Call.args) == 1 else _Scalar_Expr(Call.args[0], set(Names), Plan)
         End = _Scalar_Expr(Call.args[0 if len(Call.args) == 1 else 1], set(Names), Plan)
-        Step = 1 if len(Call.args) < 3 else ast.literal_eval(Call.args[2])
-        if type(Step) is not int or not 1 <= abs(Step) <= 2**31 - 1:
-            return None
+        Step = "1" if len(Call.args) < 3 else _Scalar_Expr(Call.args[2], set(Names), Plan)
         Expression, Kind = _Scalar_Division_Expr(Update.value, set(Names) | {Loop.target.id}, Plan)
         if Kind != "float":
             return None
@@ -77,12 +75,12 @@ cdef str _Scalar_Division_Kernel(dict Plan, int Line):
     Locals = list(Plan["Slots"].values())[len(Args):]
     Native = f"_Pyceler_Int_Loop_{Line}"
     Parameters = [*("_Pyceler_Int " + Var for Var in Args), "bint* Changed"]
-    Compare = "<" if Plan["Step"] > 0 else ">"
     Lines = [f"cdef double {Native}({', '.join(Parameters)}) except? -1 nogil:",
-             "    cdef unsigned int Ticks = 0", "    cdef _Pyceler_Int Cursor, Stop",
+             "    cdef unsigned int Ticks = 0", "    cdef _Pyceler_Int Cursor, Stop, Stride",
              "    cdef _Pyceler_Int " + ", ".join(Locals), f"    cdef double Total = {Plan['Initial']}",
-             f"    Cursor = {Plan['Begin']}", f"    Stop = {Plan['End']}", f"    while Cursor {Compare} Stop:",
-             f"        {Plan['Counter']} = Cursor", f"        Cursor = _Pyceler_Add(Cursor, {Plan['Step']})",
+             f"    Cursor = {Plan['Begin']}", f"    Stop = {Plan['End']}", f"    Stride = _Pyceler_Range_Step({Plan['Step']})",
+             "    while (Stride > 0 and Cursor < Stop) or (Stride < 0 and Cursor > Stop):",
+             f"        {Plan['Counter']} = Cursor", "        Cursor = _Pyceler_Add(Cursor, Stride)",
              "        _Pyceler_Poll(&Ticks)", f"        Total = _Pyceler_Float_Add(Total, {Plan['Expression']})",
              "        Changed[0] = True", "    return Total"]
     Arguments = ", ".join(Args)

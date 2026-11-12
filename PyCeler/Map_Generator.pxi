@@ -1,8 +1,9 @@
 cdef str _Map_Kernel(dict Plan, int Line, bint Parallel, bint Measured=False):
+    Common = _Map_Validate(Plan)
     Names = Plan.get("Kernel_Names", Plan["Names"])
-    Destination = Names.index(Plan["Output"])
-    Arrays = tuple(Index for Index, Name in enumerate(Names) if Name in Plan["Arrays"])
-    Scalars = tuple(Index for Index, Name in enumerate(Names) if Name in Plan["Scalars"])
+    Destination = Common.Output
+    Arrays = Common.Arrays
+    Scalars = Common.Scalars
     Variables = [f"V{Index}" for Index in range(len(Names))]
     Arguments = ", ".join(Variables)
     Declarations = []

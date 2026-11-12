@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import re
 import shutil
@@ -9,6 +10,262 @@ import tempfile
 import time
 from contextlib import contextmanager
 from pathlib import Path
+
+class _Build_Timeout(RuntimeError):
+
+    def __init__(self, Seconds, Elapsed, Log, Cleanup):
+        self.Seconds, self.Elapsed, self.Log, self.Cleanup = Seconds, Elapsed, Path(Log), Cleanup
+        super().__init__(f"Native build deadline exceeded ({Seconds:g} seconds; elapsed {Elapsed:.3f} seconds). "
+                         f"Owned process cleanup: {Cleanup}. Full log: {Log}")
+
+def _Build_Deadline():
+    Value = os.environ.get("PYCELER_BUILD_TIMEOUT_SECONDS")
+    if Value is None or Value == "":
+        return None
+    try:
+        Seconds = float(Value)
+    except ValueError as Error:
+        raise ValueError("PYCELER_BUILD_TIMEOUT_SECONDS must be zero or a finite positive number") from Error
+    if not math.isfinite(Seconds) or Seconds < 0:
+        raise ValueError("PYCELER_BUILD_TIMEOUT_SECONDS must be zero or a finite positive number")
+    return Seconds or None
+
+def _Deadline_Log(Stream, Record):
+    Stream.write("Build deadline: " + json.dumps(Record, sort_keys=True) + "\n")
+    Stream.flush()
+
+def _Deadline_Exception_Log(Stream, Record, Error):
+    try:
+        _Deadline_Log(Stream, Record)
+    except OSError as Log_Error:
+        if Error is None:
+            raise
+        Error.add_note("Build deadline log could not be written: " + str(Log_Error))
+
+def _Run_Bounded_Build(Command, Directory, Stream, Seconds):
+    Started = time.monotonic()
+    _Deadline_Log(Stream, dict(Status="starting", Seconds=Seconds, Ownership="job" if os.name == "nt" else "session"))
+    try:
+        Runner = _Windows_Bounded_Build if os.name == "nt" else _Posix_Bounded_Build
+        Record = Runner(Command, Directory, Stream, Started + Seconds)
+    except BaseException as Error:
+        _Deadline_Exception_Log(Stream, dict(Status="interrupted" if isinstance(Error, (KeyboardInterrupt, SystemExit)) else "failed",
+                                            Elapsed=time.monotonic() - Started, Error=str(Error)), Error)
+        raise
+    Record["Seconds"], Record["Elapsed"] = Seconds, time.monotonic() - Started
+    _Deadline_Log(Stream, Record)
+    if Record["Timed_Out"]:
+        raise _Build_Timeout(Seconds, Record["Elapsed"], Stream.name, Record["Cleanup"])
+    if Record["Cleanup"] != "complete":
+        raise RuntimeError(f"Native build owned-process cleanup failed: {Record['Cleanup']}. Full log: {Stream.name}")
+    return Record["Return_Code"]
+
+def _Windows_Build_API():
+    import ctypes as C
+    from ctypes import wintypes as W
+    class _Startup(C.Structure):
+        _fields_ = [("cb", W.DWORD), ("lpReserved", W.LPWSTR), ("lpDesktop", W.LPWSTR), ("lpTitle", W.LPWSTR),
+                    ("dwX", W.DWORD), ("dwY", W.DWORD), ("dwXSize", W.DWORD), ("dwYSize", W.DWORD),
+                    ("dwXCountChars", W.DWORD), ("dwYCountChars", W.DWORD), ("dwFillAttribute", W.DWORD),
+                    ("dwFlags", W.DWORD), ("wShowWindow", W.WORD), ("cbReserved2", W.WORD),
+                    ("lpReserved2", C.POINTER(W.BYTE)), ("hStdInput", W.HANDLE), ("hStdOutput", W.HANDLE), ("hStdError", W.HANDLE)]
+    class _Startup_Extended(C.Structure):
+        _fields_ = [("StartupInfo", _Startup), ("lpAttributeList", C.c_void_p)]
+    class _Process(C.Structure):
+        _fields_ = [("hProcess", W.HANDLE), ("hThread", W.HANDLE), ("dwProcessId", W.DWORD), ("dwThreadId", W.DWORD)]
+    class _Limits(C.Structure):
+        _fields_ = [("PerProcessUserTimeLimit", C.c_longlong), ("PerJobUserTimeLimit", C.c_longlong), ("LimitFlags", W.DWORD),
+                    ("MinimumWorkingSetSize", C.c_size_t), ("MaximumWorkingSetSize", C.c_size_t), ("ActiveProcessLimit", W.DWORD),
+                    ("Affinity", C.c_size_t), ("PriorityClass", W.DWORD), ("SchedulingClass", W.DWORD)]
+    class _Io(C.Structure):
+        _fields_ = [(Name, C.c_ulonglong) for Name in ("ReadOperationCount", "WriteOperationCount", "OtherOperationCount", "ReadTransferCount", "WriteTransferCount", "OtherTransferCount")]
+    class _Extended_Limits(C.Structure):
+        _fields_ = [("BasicLimitInformation", _Limits), ("IoInfo", _Io), ("ProcessMemoryLimit", C.c_size_t),
+                    ("JobMemoryLimit", C.c_size_t), ("PeakProcessMemoryUsed", C.c_size_t), ("PeakJobMemoryUsed", C.c_size_t)]
+    class _Accounting(C.Structure):
+        _fields_ = [("TotalUserTime", C.c_longlong), ("TotalKernelTime", C.c_longlong), ("ThisPeriodTotalUserTime", C.c_longlong),
+                    ("ThisPeriodTotalKernelTime", C.c_longlong), ("TotalPageFaultCount", W.DWORD), ("TotalProcesses", W.DWORD),
+                    ("ActiveProcesses", W.DWORD), ("TotalTerminatedProcesses", W.DWORD)]
+    Api = C.WinDLL("kernel32", use_last_error=True)
+    Functions = {
+        "CreateJobObjectW": (W.HANDLE, [C.c_void_p, W.LPCWSTR]),
+        "SetInformationJobObject": (W.BOOL, [W.HANDLE, C.c_int, C.c_void_p, W.DWORD]),
+        "InitializeProcThreadAttributeList": (W.BOOL, [C.c_void_p, W.DWORD, W.DWORD, C.POINTER(C.c_size_t)]),
+        "UpdateProcThreadAttribute": (W.BOOL, [C.c_void_p, W.DWORD, C.c_size_t, C.c_void_p, C.c_size_t, C.c_void_p, C.c_void_p]),
+        "DeleteProcThreadAttributeList": (None, [C.c_void_p]),
+        "GetCurrentProcess": (W.HANDLE, []),
+        "DuplicateHandle": (W.BOOL, [W.HANDLE, W.HANDLE, W.HANDLE, C.POINTER(W.HANDLE), W.DWORD, W.BOOL, W.DWORD]),
+        "CreateProcessW": (W.BOOL, [W.LPCWSTR, W.LPWSTR, C.c_void_p, C.c_void_p, W.BOOL, W.DWORD, C.c_void_p, W.LPCWSTR, C.POINTER(_Startup), C.POINTER(_Process)]),
+        "WaitForSingleObject": (W.DWORD, [W.HANDLE, W.DWORD]),
+        "GetExitCodeProcess": (W.BOOL, [W.HANDLE, C.POINTER(W.DWORD)]),
+        "TerminateJobObject": (W.BOOL, [W.HANDLE, W.UINT]),
+        "QueryInformationJobObject": (W.BOOL, [W.HANDLE, C.c_int, C.c_void_p, W.DWORD, C.c_void_p]),
+        "CloseHandle": (W.BOOL, [W.HANDLE])}
+    for Name, (Result, Arguments) in Functions.items():
+        Function = getattr(Api, Name)
+        Function.restype, Function.argtypes = Result, Arguments
+    return C, W, Api, _Startup, _Startup_Extended, _Process, _Extended_Limits, _Accounting
+
+def _Windows_Job_Cleanup(Api, C, Job, Accounting):
+    if not Api.TerminateJobObject(Job, 1):
+        return "TerminateJobObject failed: " + str(C.WinError(C.get_last_error()))
+    Deadline = time.monotonic() + 5.0
+    State = Accounting()
+    while True:
+        if not Api.QueryInformationJobObject(Job, 1, C.byref(State), C.sizeof(State), None):
+            return "QueryInformationJobObject failed: " + str(C.WinError(C.get_last_error()))
+        if State.ActiveProcesses == 0:
+            return "complete"
+        if time.monotonic() >= Deadline:
+            return f"{State.ActiveProcesses} owned job processes did not exit within cleanup grace"
+        time.sleep(0.01)
+
+def _Windows_Bounded_Build(Command, Directory, Stream, Deadline):
+    import msvcrt
+    C, W, Api, Startup, Startup_Extended, Process, Extended_Limits, Accounting = _Windows_Build_API()
+    Job, Handles, Attributes, Initialized, Launched, Cleaned = None, [], None, False, False, False
+    Information = Process()
+    try:
+        Job = Api.CreateJobObjectW(None, None)
+        if not Job:
+            raise C.WinError(C.get_last_error())
+        Limits = Extended_Limits()
+        Limits.BasicLimitInformation.LimitFlags = 0x2000
+        if not Api.SetInformationJobObject(Job, 9, C.byref(Limits), C.sizeof(Limits)):
+            raise C.WinError(C.get_last_error())
+        Size = C.c_size_t()
+        Api.InitializeProcThreadAttributeList(None, 2, 0, C.byref(Size))
+        if not Size.value:
+            raise C.WinError(C.get_last_error())
+        Attributes = C.create_string_buffer(Size.value)
+        if not Api.InitializeProcThreadAttributeList(Attributes, 2, 0, C.byref(Size)):
+            raise C.WinError(C.get_last_error())
+        Initialized = True
+        Jobs = (W.HANDLE * 1)(Job)
+        if not Api.UpdateProcThreadAttribute(Attributes, 0, 0x2000D, Jobs, C.sizeof(Jobs), None, None):
+            raise RuntimeError("A bounded build requires creation-time Windows job assignment") from C.WinError(C.get_last_error())
+        Current = Api.GetCurrentProcess()
+        with open(os.devnull, "rb") as Input:
+            for File in (Input, Stream):
+                Handle = W.HANDLE()
+                if not Api.DuplicateHandle(Current, msvcrt.get_osfhandle(File.fileno()), Current, C.byref(Handle), 0, True, 2):
+                    raise C.WinError(C.get_last_error())
+                Handles.append(Handle.value)
+        Inherited = (W.HANDLE * len(Handles))(*Handles)
+        if not Api.UpdateProcThreadAttribute(Attributes, 0, 0x20002, Inherited, C.sizeof(Inherited), None, None):
+            raise C.WinError(C.get_last_error())
+        Start = Startup_Extended()
+        Start.StartupInfo.cb = C.sizeof(Start)
+        Start.StartupInfo.dwFlags, Start.StartupInfo.wShowWindow = 0x101, 0
+        Start.StartupInfo.hStdInput, Start.StartupInfo.hStdOutput, Start.StartupInfo.hStdError = Handles[0], Handles[1], Handles[1]
+        Start.lpAttributeList = C.cast(Attributes, C.c_void_p)
+        Executable = shutil.which(Command[0])
+        if Executable is None:
+            raise FileNotFoundError(Command[0])
+        Arguments = C.create_unicode_buffer(subprocess.list2cmdline(Command))
+        if time.monotonic() >= Deadline:
+            return dict(Return_Code=None, Timed_Out=True, Cleanup="complete", Launched=False)
+        if not Api.CreateProcessW(Executable, Arguments, None, None, True, 0x80000 | 0x8000000, None, str(Directory), C.cast(C.byref(Start), C.POINTER(Startup)), C.byref(Information)):
+            raise RuntimeError("Bounded build worker creation failed before execution: " + str(C.WinError(C.get_last_error())))
+        Launched = True
+        while Handles:
+            Api.CloseHandle(Handles.pop())
+        Timed_Out, Return_Code = False, None
+        while True:
+            Remaining = Deadline - time.monotonic()
+            Wait = Api.WaitForSingleObject(Information.hProcess, math.ceil(max(0, min(0.05, Remaining)) * 1000))
+            if Wait == 0:
+                Code = W.DWORD()
+                if not Api.GetExitCodeProcess(Information.hProcess, C.byref(Code)):
+                    raise C.WinError(C.get_last_error())
+                Return_Code = Code.value
+                break
+            if Wait != 258:
+                raise C.WinError(C.get_last_error())
+            if Remaining <= 0:
+                Timed_Out = True
+                break
+        Cleanup = _Windows_Job_Cleanup(Api, C, Job, Accounting)
+        Cleaned = True
+        return dict(Return_Code=Return_Code, Timed_Out=Timed_Out, Cleanup=Cleanup, Launched=True)
+    finally:
+        Error = sys.exc_info()[1]
+        try:
+            if Launched and not Cleaned:
+                Cleanup = _Windows_Job_Cleanup(Api, C, Job, Accounting)
+                _Deadline_Exception_Log(Stream, dict(Status="exception cleanup", Cleanup=Cleanup), Error)
+        finally:
+            for Handle in (Information.hThread, Information.hProcess, *Handles):
+                if Handle:
+                    Api.CloseHandle(Handle)
+            if Initialized:
+                Api.DeleteProcThreadAttributeList(Attributes)
+            if Job:
+                Api.CloseHandle(Job)
+
+def _Posix_Child_State(Process):
+    try:
+        return os.waitid(os.P_PID, Process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+    except ChildProcessError as Error:
+        raise RuntimeError("Build child ownership was lost to an external reaper; no process-group signal was sent") from Error
+
+def _Posix_Group_Signal(Process, Signal):
+    _Posix_Child_State(Process)
+    try:
+        os.killpg(Process.pid, Signal)
+    except ProcessLookupError:
+        pass
+
+def _Posix_Group_Cleanup(Process, Graceful):
+    import signal
+    try:
+        if Graceful:
+            _Posix_Group_Signal(Process, signal.SIGTERM)
+            End = time.monotonic() + 0.25
+            while time.monotonic() < End and _Posix_Child_State(Process) is None:
+                time.sleep(0.01)
+        _Posix_Group_Signal(Process, signal.SIGKILL)
+        Process.wait(timeout=5)
+        End = time.monotonic() + 5.0
+        while True:
+            try:
+                os.killpg(Process.pid, 0)
+            except ProcessLookupError:
+                return "complete"
+            if time.monotonic() >= End:
+                return "owned process group exit could not be confirmed within cleanup grace"
+            time.sleep(0.01)
+    except (OSError, RuntimeError, subprocess.TimeoutExpired) as Error:
+        return str(Error)
+
+def _Posix_Bounded_Build(Command, Directory, Stream, Deadline):
+    import signal
+    if not all(hasattr(os, Name) for Name in ("waitid", "WNOWAIT", "WEXITED", "WNOHANG", "P_PID", "killpg")):
+        raise RuntimeError("Bounded builds require POSIX waitid/WNOWAIT and owned process groups")
+    if signal.getsignal(signal.SIGCHLD) != signal.SIG_DFL:
+        raise RuntimeError("Bounded builds require default SIGCHLD handling and exclusive child reaping")
+    if time.monotonic() >= Deadline:
+        return dict(Return_Code=None, Timed_Out=True, Cleanup="complete", Launched=False)
+    Process = subprocess.Popen(Command, cwd=Directory, stdin=subprocess.DEVNULL, stdout=Stream, stderr=subprocess.STDOUT, start_new_session=True)
+    Cleaned = False
+    try:
+        while True:
+            State = _Posix_Child_State(Process)
+            if State is not None:
+                Timed_Out = False
+                break
+            if time.monotonic() >= Deadline:
+                Timed_Out = True
+                break
+            time.sleep(min(0.01, max(0, Deadline - time.monotonic())))
+        Cleanup = _Posix_Group_Cleanup(Process, Timed_Out)
+        Cleaned = True
+        return dict(Return_Code=Process.returncode, Timed_Out=Timed_Out, Cleanup=Cleanup, Launched=True)
+    finally:
+        if not Cleaned:
+            Error = sys.exc_info()[1]
+            Cleanup = _Posix_Group_Cleanup(Process, True)
+            _Deadline_Exception_Log(Stream, dict(Status="exception cleanup", Cleanup=Cleanup), Error)
 
 @contextmanager
 def _Workspace():
@@ -117,6 +374,7 @@ def _Build(Stage, Paths, Output, Mode, Version, Link, OpenMP, Reports=(), Packag
     Command, Version = _Interpreter(Mode, Version)
     if OpenMP is not None and type(OpenMP) is not bool:
         raise ValueError("OpenMP must be None, True or False")
+    Deadline = _Build_Deadline()
     Request = dict(Paths=[Path(Item).as_posix() for Item in Paths], Mode=Mode, Version=Version, Link=Link, OpenMP=OpenMP,
                    Package_Loaders=Package_Loaders)
     State = None
@@ -134,9 +392,11 @@ def _Build(Stage, Paths, Output, Mode, Version, Link, OpenMP, Reports=(), Packag
                "from PyCeler.Native_Build import _Run\n_Run(Path(sys.argv[2]))\n")
     with Log.open("w", encoding="utf-8") as Stream:
         if Request["Paths"]:
-            Result = subprocess.run([*Command, "-I", "-B", "-c", Program, str(Path(__file__).resolve().parent), str(Spec)], cwd=Stage,
-                                    stdout=Stream, stderr=subprocess.STDOUT)
-            Return_Code = Result.returncode
+            Worker = [*Command, "-I", "-B", "-c", Program, str(Path(__file__).resolve().parent), str(Spec)]
+            if Deadline is None:
+                Return_Code = subprocess.run(Worker, cwd=Stage, stdout=Stream, stderr=subprocess.STDOUT).returncode
+            else:
+                Return_Code = _Run_Bounded_Build(Worker, Stage, Stream, Deadline)
         else:
             (Stage / "Products.json").write_text(json.dumps(Request["Cached_Products"]), encoding="utf-8")
             Stream.write("All native products restored from the compatible binary cache.\n")

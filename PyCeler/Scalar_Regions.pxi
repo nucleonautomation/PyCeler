@@ -32,7 +32,7 @@ cdef void _Scalar_Region_Inputs(list Statements, set Defined, list Inputs) excep
             Defined.update(Yes & No)
 
 cdef object _Scalar_Region_Plan(object Function, object Loop, set Available, str Scope):
-    if not isinstance(Loop, ast.For) or not isinstance(Loop.target, ast.Name) or Loop.orelse:
+    if not isinstance(Loop, ast.For) or not isinstance(Loop.target, ast.Name):
         return None
     Call = Loop.iter
     if not isinstance(Call, ast.Call) or not _Name(Call.func, "range") or Call.keywords or not 1 <= len(Call.args) <= 3:
@@ -42,22 +42,24 @@ cdef object _Scalar_Region_Plan(object Function, object Loop, set Available, str
         Literal = Call.args[2]
         Negative = isinstance(Literal, ast.UnaryOp) and isinstance(Literal.op, ast.USub)
         Literal = Literal.operand if Negative else Literal
-        if not isinstance(Literal, ast.Constant) or type(Literal.value) is not int or not 1 <= Literal.value <= 2**31 - 1:
+        if isinstance(Literal, ast.Constant) and type(Literal.value) is int and Literal.value == 0:
             return None
-        Step = -Literal.value if Negative else Literal.value
+        Step = (-Literal.value if Negative else Literal.value) if isinstance(Literal, ast.Constant) and type(Literal.value) is int and 1 <= Literal.value <= 2**31 - 1 else None
     Index = Loop.target.id
     if Index == "range":
         return None
     Statements = list(Loop.body)
     Period = _Scalar_Progress(Statements[-1], Index)
     Reporting = Statements.pop() if Period is not None else None
+    if Loop.orelse and Reporting is not None and any(isinstance(Part, ast.Break) for Part in ast.walk(Reporting)):
+        return None
     if not Statements:
         return None
     Parts = [Part for Statement in Statements for Part in ast.walk(Statement)]
     if any(isinstance(Part, (ast.For, ast.While, ast.Call, ast.Return, ast.Break, ast.Continue, ast.Raise, ast.Try, ast.With,
                               ast.Yield, ast.YieldFrom, ast.NamedExpr, ast.Subscript, ast.Attribute)) for Part in Parts):
         return None
-    if any(isinstance(Part, ast.Assign) and not _Scalar_Fresh(Part.value) or isinstance(Part, ast.AugAssign) and isinstance(Part.op, ast.Mod) for Part in Parts):
+    if any(isinstance(Part, ast.Assign) and not _Scalar_Fresh(Part.value) or isinstance(Part, ast.AugAssign) and not isinstance(Part.op, (ast.Add, ast.Sub, ast.Mult, ast.FloorDiv)) for Part in Parts):
         return None
     if any(isinstance(Part, ast.Name) and isinstance(Part.ctx, ast.Store) and Part.id == Index for Part in Parts):
         return None
@@ -81,9 +83,18 @@ cdef object _Scalar_Region_Plan(object Function, object Loop, set Available, str
     while Begin in Used:
         Begin += "_X"
     Names = (Stop, Begin, *Inputs)
+    Stride = "_Pyceler_Stride"
+    if Step is None:
+        while Stride in Used or Stride in Names:
+            Stride += "_X"
+        Names = (*Names, Stride)
     Plan = dict(Kind="scalar_region", Names=Names, Inputs=tuple(Inputs), Outputs=Outputs, Index=Index, Slots={}, Temporaries=[],
                 Lines=[], Loops=[Loop], Start=Loop.lineno, Region=True, Scope=Scope, Period=Period, Step=Step, Reporting=Reporting,
                 Statements=Statements, Size_Arguments=(0,), Transformations=("Scalar region extraction", "Ordered progress boundaries") if Reporting is not None else ("Scalar region extraction",))
+    if Step is None:
+        Plan["Step_Name"] = Stride
+        Plan["Step_Argument"] = len(Names) - 1
+        Plan["Transformations"] += ("Snapshotted runtime stride",)
     for Name in (*Names, *Outputs):
         _Scalar_Slot(Name, Plan)
     Bound = set(Inputs) | {Index}
@@ -109,8 +120,9 @@ cdef object _Scalar_Region_Plan(object Function, object Loop, set Available, str
         Plan["Lines"] = [f"                {Target} = _Pyceler_Float_Add({Target}, {Value})"]
     Definition = ast.parse(f"def _Pyceler_Probe({', '.join(Names)}):\n    pass").body[0]
     Candidate = copy.deepcopy(Loop)
-    Candidate.iter = ast.parse(f"range({Begin}, {Stop}, {Step})", mode="eval").body
+    Candidate.iter = ast.parse(f"range({Begin}, {Stop}, {Stride if Step is None else Step})", mode="eval").body
     Candidate.body = copy.deepcopy(Statements)
+    Candidate.orelse = []
     Definition.body = [ast.parse(f"{Index} = {Begin}").body[0], Candidate, ast.parse("return (" + ", ".join(Outputs) + ",)").body[0]]
     Plan["Probe"] = ast.fix_missing_locations(Definition)
     return Plan
@@ -164,4 +176,4 @@ cdef void _Find_Scalar_Regions(object Tree, list Findings, dict Edits) except *:
         if Plan is not None:
             Reason = "Only pure numeric spans are measured; surrounding Python calls and progress boundaries remain in source order. Checked arithmetic falls back before a span commits."
             Findings[Position] = replace(Finding, Classification="Scalar_Numeric_Region", Change="Extract guarded serial numeric region", Reason=Reason,
-                                         Transformations=Plan["Transformations"], Constraints=("Exact built-in range with a supported literal stride", "Checked scalar arithmetic", "Inline fallback preserves partial updates"))
+                                         Transformations=Plan["Transformations"], Constraints=("Exact built-in range with a captured nonzero stride", "Checked scalar arithmetic", "Inline fallback preserves partial updates"))

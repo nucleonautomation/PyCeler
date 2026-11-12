@@ -27,5 +27,5 @@ del _Built_Path
 from .Loop_Detector import Loop_Finding
 from .Engine import Analyze, Convert, Compile
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __all__ = ["Analyze", "Convert", "Compile", "Loop_Finding"]

@@ -1,0 +1,66 @@
+cdef unsigned long long _Pyceler_Module_Native = 0
+cdef unsigned long long _Pyceler_Module_Parallel = 0
+cdef unsigned long long _Pyceler_Module_Fallbacks = 0
+cdef int _Pyceler_Module_Team = 0
+import sys as _Pyceler_Module_System
+import signal as _Pyceler_Module_Signal
+import threading as _Pyceler_Module_Threading
+
+cdef object _Pyceler_Module_Namespace():
+    return globals()
+
+def _Pyceler_Module_Blocks(object Span, object Size):
+    import builtins as B
+    if Size is None:
+        yield Span
+    else:
+        for Offset in B.range(0, Size, 65536):
+            yield Span[Offset:Offset + 65536]
+
+def _Pyceler_Module_Stats():
+    return dict(Native=_Pyceler_Module_Native, Parallel=_Pyceler_Module_Parallel, Team=_Pyceler_Module_Team, Fallbacks=_Pyceler_Module_Fallbacks)
+
+cdef bint _Pyceler_Module_Exclusive():
+    S = _Pyceler_Module_System
+    Signal = _Pyceler_Module_Signal
+    T = _Pyceler_Module_Threading
+    if T.current_thread() is not T.main_thread() or len(S._current_frames()) != 1 or S.gettrace() is not None or S.getprofile() is not None:
+        return False
+    for Number in Signal.valid_signals():
+        Handler = Signal.getsignal(Number)
+        if Handler is not None and Handler is not Signal.SIG_DFL and Handler is not Signal.SIG_IGN and Handler is not Signal.default_int_handler:
+            return False
+    return True
+
+cdef void _Pyceler_Module_Checkpoint(bint Cooperative=False) except *:
+    _Pyceler_Signals()
+    if Cooperative:
+        _Pyceler_Scheduler_Yield()
+    else:
+        with nogil:
+            pass
+
+cdef object _Pyceler_Module_Value(object Namespace, str Name):
+    import builtins as B
+    if Name in Namespace:
+        return Namespace[Name]
+    Builtins = Namespace.get('__builtins__', B)
+    if B.type(Builtins) is not B.dict:
+        Builtins = B.vars(Builtins)
+    if Name in Builtins:
+        return Builtins[Name]
+    raise NameError("name '" + Name + "' is not defined")
+
+cdef void _Pyceler_Module_Python_Block(object Namespace, object Iterator, object Code) except *:
+    import builtins as B
+    Key = '_Pyceler_Module_Iterator'
+    Present = Key in Namespace
+    Previous = Namespace.get(Key)
+    Namespace[Key] = Iterator
+    try:
+        B.exec(Code, Namespace)
+    finally:
+        if Present:
+            Namespace[Key] = Previous
+        else:
+            Namespace.pop(Key, None)

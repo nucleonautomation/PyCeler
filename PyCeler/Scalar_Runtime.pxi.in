@@ -33,6 +33,53 @@ cdef inline _Pyceler_Int _Pyceler_Multiply(_Pyceler_Int Left, _Pyceler_Int Right
             raise _Pyceler_Overflow()
     return Left * Right
 
+cdef inline _Pyceler_Int _Pyceler_Range_Step(_Pyceler_Int Step) except? -1 nogil:
+    if Step == 0:
+        with gil:
+            raise _Pyceler_Overflow()
+    return Step
+
+cdef inline _Pyceler_Int _Pyceler_Bit_And(_Pyceler_Int Left, _Pyceler_Int Right) noexcept nogil:
+    return Left & Right
+
+cdef inline _Pyceler_Int _Pyceler_Bit_Or(_Pyceler_Int Left, _Pyceler_Int Right) noexcept nogil:
+    return Left | Right
+
+cdef inline _Pyceler_Int _Pyceler_Bit_Xor(_Pyceler_Int Left, _Pyceler_Int Right) noexcept nogil:
+    return Left ^ Right
+
+cdef inline _Pyceler_Int _Pyceler_Left_Shift(_Pyceler_Int Value, _Pyceler_Int Count) except? -1 nogil:
+    cdef _Pyceler_Int Index
+    if Count < 0 or (Count > 63 and Value != 0):
+        with gil:
+            raise _Pyceler_Overflow()
+    if Value == 0:
+        return 0
+    for Index in range(Count):
+        Value = _Pyceler_Multiply(Value, 2)
+    return Value
+
+cdef inline _Pyceler_Int _Pyceler_Right_Shift(_Pyceler_Int Value, _Pyceler_Int Count) except? -1 nogil:
+    if Count < 0:
+        with gil:
+            raise _Pyceler_Overflow()
+    if Count >= 63:
+        return -1 if Value < 0 else 0
+    return _Pyceler_Floor_Divide(Value, (<_Pyceler_Int>1) << Count)
+
+cdef inline _Pyceler_Int _Pyceler_Power(_Pyceler_Int Value, _Pyceler_Int Exponent) except? -1 nogil:
+    cdef _Pyceler_Int Result = 1
+    if Exponent < 0:
+        with gil:
+            raise _Pyceler_Overflow()
+    while Exponent:
+        if Exponent & 1:
+            Result = _Pyceler_Multiply(Result, Value)
+        Exponent = Exponent >> 1
+        if Exponent:
+            Value = _Pyceler_Multiply(Value, Value)
+    return Result
+
 @_Pyceler_Cdivision(True)
 cdef inline _Pyceler_Int _Pyceler_Modulo(_Pyceler_Int Left, _Pyceler_Int Right) except? -1 nogil:
     cdef _Pyceler_Int Remainder

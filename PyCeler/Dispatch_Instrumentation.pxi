@@ -29,7 +29,7 @@ cdef list _Dispatch_Function(list Lines, str Name, str Prefix):
     if " nogil" in Signature or Name.startswith(Prefix + "Dispatch_"):
         return Lines
     Parallel = any(Prefix + "Prange(" in Line for Line in Lines)
-    Native_Run = bool(re.search(r"(?:^|_)(?:Run|Reduction_Serial|Inliers|Best_Rows)_\d+(?:_Team_\d+)?$", Name[len(Prefix):]))
+    Native_Run = not Name.startswith(Prefix + 'Module_Run_') and bool(re.search(r"(?:^|_)(?:Run|Reduction_Serial|Inliers|Best_Rows)_\d+(?:_Team_\d+)?$", Name[len(Prefix):]))
     Scalar = bool(re.fullmatch(re.escape(Prefix) + r"Scalar_(?:Region_)?\d+(?:_Team_\d+)?", Name))
     Boolean_Guard = bool(re.fullmatch(re.escape(Prefix) + r"(?:Clear(?:_Team_\d+)?|Map_\d+(?:_Team_\d+)?)", Name))
     Region = Name.startswith(Prefix + "Scalar_Region_")

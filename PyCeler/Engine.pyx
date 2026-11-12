@@ -7,6 +7,8 @@ from pathlib import Path
 from .Loop_Detector import Loop_Finding
 from .Native_Build import _Build, _Member_Alias, _Publish, _Temporary_Workspace, _Workspace
 from .Runtime_Resources import _Resource
+from .Common_Analysis import _Attach_Common_Plans, _Map_Validate
+from .Math_Maps import _Math_Map_Plans, _Math_Map_Kernel, _Math_Map_Constant_Source, _Module_Constant_Anchor, _Module_Constant_Kernel, _Native_Prefix
 
 cdef bint _Name(object Node, str Name):
     return isinstance(Node, ast.Name) and Node.id == Name
@@ -90,6 +92,8 @@ include "Structural_Planner.pxi"
 include "Numeric_Planner.pxi"
 include "Analysis_Ranking.pxi"
 include "Scalar_Regions.pxi"
+include "Module_Parallel.pxi"
+include "Module_Scalar.pxi"
 include "Scalar_Sizing.pxi"
 include "Diagnostics.pxi"
 include "Cython_Frontend.pxi"
@@ -173,8 +177,24 @@ cdef tuple _Plan(object File, bint Parallel, bint Elide_Temporaries=False):
     _Structural_Plans(Tree, Findings, Edits, Parallel, Elide_Temporaries)
     _Numeric_Plans(Tree, Findings, Edits, Parallel, Elide_Temporaries)
     _Find_Scalar_Regions(Tree, Findings, Edits)
+    _Find_Module_Scalars(Tree, Findings, Edits)
+    Math_Edits = _Math_Map_Plans(Tree, Text)
+    Occupied = {Edit[2] for Edit in Edits.values()}
+    for Line, Edit in Math_Edits.items():
+        if Edit[2] in Occupied:
+            continue
+        Edits[Line] = Edit
+        Plan = Edit[3]
+        Covered = {Loop.lineno for Loop in Plan['Loops']}
+        for Position, Finding in enumerate(Findings):
+            if Finding.Line in Covered:
+                Finding_Change = 'Guarded native float64 math with eligible OpenMP and ordered continuation' if Plan.get('Fast_Math') else 'Guarded serial object-semantic math loop'
+                Findings[Position] = replace(Finding, Classification='Guarded_Ordered_Math', Change=Finding_Change,
+                    Reason=Plan['Numerical_Contract'], Transformations=('Compiled ordered math iteration',),
+                    Constraints=('Plain numeric arrays', 'Original library functions and live bindings', 'Serial execution preserves exceptions and mutation order'))
     _Apply_Diagnostics(Tree, Findings, Edits)
     Findings = _Rank_Findings(Findings, Tree, Edits)
+    Findings = _Attach_Common_Plans(Tree, Findings, Edits)
     return Text, Findings, Edits, Tree
 
 cdef tuple _Inputs(object Source_Path):

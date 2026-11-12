@@ -80,3 +80,27 @@ class Scalar_Workload_Sizing(unittest.TestCase):
         self.assertEqual(Sizing["Bounds"], [1])
         self.assertEqual(Sizing["Arguments"], [1])
         self.assertFalse(Sizing["Exact"])
+
+    def test_Dynamic_Strides_Match_Python_And_Probe_Sizing(self):
+        Sizing = self._Plan("def Count(Start, Stop, Step):\n    Total = 0\n    for Index in range(Start, Stop, Step):\n        Total += Index\n    return Total\n")
+        self.assertTrue(Sizing["Exact"])
+        self.assertEqual(Sizing["Arguments"], [0, 1, 2])
+        for Start in (-11, 0, 17):
+            for Stop in (-13, 0, 19):
+                for Step in (-7, -1, 1, 7):
+                    self.assertEqual(_Scalar_Workload_Size(Sizing, (Start, Stop, Step)), len(range(Start, Stop, Step)))
+        for Step in (0, True, 0.5, object()):
+            self.assertEqual(_Scalar_Workload_Size(Sizing, (0, 10, Step)), 0)
+        Cases = list(_Scalar_Size_Cases(dict(Size_Plan=Sizing, Arguments=3)))
+        self.assertEqual([Case[1] for Case in Cases], [4, 256, 32768])
+        for Key, Size, Shape, Args in Cases:
+            self.assertEqual(Size, len(range(*Args)))
+
+    def test_Dynamic_Stride_Snapshot_And_Overwritten_Guards(self):
+        Source = "def Count(Start, Stop, Step):\n    Total = 0\n    for Index in range(Start, Stop, Step):\n        Step = 0\n        Total += Index\n    return Total\n"
+        Sizing = self._Plan(Source)
+        self.assertTrue(Sizing["Exact"])
+        self.assertEqual(_Scalar_Workload_Size(Sizing, (1, 20, 3)), 7)
+        Changed = self._Plan(Source.replace("    Total = 0", "    Step = 3\n    Total = 0"))
+        self.assertEqual(Changed["Ranges"], [])
+        self.assertEqual(Changed["Overwritten_Arguments"], ["Step"])

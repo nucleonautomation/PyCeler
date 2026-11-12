@@ -29,7 +29,7 @@ class Optimization_Diagnostics(unittest.TestCase):
         self.assertIn("unproven_call_boundary", By_Code)
         self.assertEqual(By_Code["unsupported_scalar_operator"]["Line"], 6)
         self.assertEqual(By_Code["unproven_call_boundary"]["Line"], 7)
-        self.assertIn("Pow", Function.Reason)
+        self.assertIn("MatMult", Function.Reason)
         self.assertIn("Callback", Function.Reason)
         self.assertTrue(all(Item["Suggestion"] and Item["Column"] > 0 for Item in Function.Diagnostics))
         self.assertIsInstance(hash(Function), int)

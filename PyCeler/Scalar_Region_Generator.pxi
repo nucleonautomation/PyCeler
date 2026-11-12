@@ -17,14 +17,32 @@ cdef str _Scalar_Region_Kernel(dict Plan, int Line):
             Test = f"_Pyceler_Builtins.type({Argument}) is _Pyceler_Builtins.int and -9223372036854775808 <= {Argument} <= 9223372036854775807"
         Lines.extend([f"    if not ({Test}):", "        return None", f"    {Slots[Name]} = {Argument}"])
     Stop, Begin = (Slots[Name] for Name in Names[:2])
-    Step = Plan["Step"]
-    Empty, Compare = (">=", "<") if Step > 0 else ("<=", ">")
-    Lines.extend([f"    if {Begin} {Empty} {Stop}:", "        return None", f"    Cursor = {Begin}", "    try:", "        with nogil:",
-                  f"            while Cursor {Compare} {Stop}:", f"                {Slots[Plan['Index']]} = Cursor", "                _Pyceler_Poll(&Ticks)"])
+    Step = Plan["Step"] if Plan["Step"] is not None else Slots[Plan["Step_Name"]]
+    if Plan["Step"] is None:
+        Lines.extend([f"    if {Step} == 0:", "        return None"])
+        Condition = f"({Step} > 0 and Cursor < {Stop}) or ({Step} < 0 and Cursor > {Stop})"
+        Empty = f"({Step} > 0 and {Begin} >= {Stop}) or ({Step} < 0 and {Begin} <= {Stop})"
+    else:
+        Condition = f"Cursor {'<' if Step > 0 else '>'} {Stop}"
+        Empty = f"{Begin} {'>=' if Step > 0 else '<='} {Stop}"
+    Lines.extend([f"    if {Empty}:", "        return None", f"    Cursor = {Begin}", "    try:", "        with nogil:",
+                  f"            while {Condition}:", f"                {Slots[Plan['Index']]} = Cursor", "                _Pyceler_Poll(&Ticks)"])
     Lines.extend(Plan["Lines"])
     Lines.extend([f"                Cursor = _Pyceler_Add(Cursor, {Step})", "    except (_Pyceler_Overflow, _Pyceler_Zero_Division):", "        return None",
                   "    return (" + ", ".join(Slots[Name] for Name in Plan["Outputs"]) + ",)"])
     return "\n".join(Lines)
+
+cdef object _Scalar_Region_Minimum(object Table):
+    if not isinstance(Table, dict):
+        return None
+    Minimum = None
+    for Rows in Table.values():
+        for Bound, Mode in Rows:
+            if type(Bound) is not int or Bound < 0 or type(Mode) is not int or Mode not in (0, 1):
+                return None
+            if Mode and (Minimum is None or Bound < Minimum):
+                Minimum = Bound
+    return Minimum if Minimum else None
 
 cdef str _Scalar_Region_Source(dict Plan, object Node, int Line, str Prefix, object Table):
     Original = ast.unparse(Node)
@@ -34,7 +52,7 @@ cdef str _Scalar_Region_Source(dict Plan, object Node, int Line, str Prefix, obj
     Span, Size = f"{Prefix}Span_{Line}", f"{Prefix}Size_{Line}"
     Result = f"{Prefix}Result_{Line}"
     Candidate = f"{Prefix}Scalar_Region_{Line}"
-    Arguments = ", ".join([Stop, Begin, *Plan["Inputs"]])
+    Arguments = ", ".join([Stop, Begin, *Plan["Inputs"], *([Span + ".step"] if Plan["Step"] is None else [])])
     Range_Arguments = ", ".join(ast.unparse(Argument) for Argument in Node.iter.args)
     Lines = [f"{Range} = {Prefix}Region_Binding()({Range_Arguments})", f"if {Prefix}Region_Range({Range}, {Plan['Step']}):",
              f"    for {Span}, {Size} in {Prefix}Region_Spans({Range}, {Plan['Period']!r}):",
@@ -51,9 +69,15 @@ cdef str _Scalar_Region_Source(dict Plan, object Node, int Line, str Prefix, obj
     Lines.extend(["        else:", "            " + ", ".join(Plan["Outputs"]) + f" = {Result}"])
     if Plan["Reporting"] is not None:
         Lines.extend("        " + Text for Text in ast.unparse(Plan["Reporting"]).splitlines())
-    Lines.append("else:")
+    for Statement in Node.orelse:
+        Lines.extend("    " + Text for Text in ast.unparse(Statement).splitlines())
     Fallback = copy.deepcopy(Node)
     Fallback.iter = ast.Name(id=Range, ctx=ast.Load())
+    Minimum = _Scalar_Region_Minimum(Table)
+    if Minimum is not None:
+        Lines = [*Lines[:2], f"    if {Prefix}Region_Count({Range}) < {Minimum}:",
+                 *("        " + Text for Text in ast.unparse(Fallback).splitlines()), "    else:", *("    " + Text for Text in Lines[2:])]
+    Lines.append("else:")
     Lines.append(f"    {Prefix}Region_Declined()")
     Lines.extend("    " + Text for Text in ast.unparse(Fallback).splitlines())
     return "\n".join(Lines)

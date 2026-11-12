@@ -56,7 +56,7 @@ class Source_Bootstrap(unittest.TestCase):
             Built = Root / "Build" / "Lib" / "PyCeler"
             Package = self._Execute(Root, Built)
             self.assertEqual(Package.__path__, [str(Built)])
-            self.assertEqual(Package.__version__, "0.2.0")
+            self.assertEqual(Package.__version__, "0.3.0")
             self.assertEqual(Package.__build_id__, "a" * 64)
             self.assertEqual(Package.__all__, ["Analyze", "Convert", "Compile", "Loop_Finding"])
 

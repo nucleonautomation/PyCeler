@@ -39,8 +39,8 @@ class Observable_Semantics(unittest.TestCase):
         Source = self._Folder / "Signal_State.py"
         Source.write_text("import time\nTotal = 0\nIndex = -1\nDone = False\nStart = time.perf_counter()\nfor Index in range(1000000):\n    Total += (Index * Index + Index * 7) % 999983\nDone = True\n", encoding="utf-8")
         Finding = Analyze(Source)[0]
-        self.assertEqual(Finding.Change, "Keep original loop")
-        self.assertTrue(any("signal" in Item.Message for Item in Finding.Diagnostics))
+        self.assertEqual(Finding.Classification, "Module_Scalar_Region")
+        self.assertIn("signal", Finding.Reason)
         Binary = Compile(Source, self._Folder / "Native", Select=False, OpenMP=False)
         Program = (self._Root / "Test" / "Signal_State_Probe.py").read_text(encoding="utf-8")
         for File, Name in ((Source, "Reference"), (Binary, "Signal_State")):

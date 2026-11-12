@@ -42,9 +42,14 @@ def _Cases(Item):
         Sizes = sorted({max(1, round(Target ** (1 / Depth))) for Target in (16, 1024, 36864)}) if Depth > 1 else (4, 256, 32768)
         if Item.get("Span_Maximum") is not None:
             Sizes = sorted({min(Size, Item["Span_Maximum"]) for Size in Sizes})
-        for Size in Sizes if Item["Arguments"] else (1,):
-            Args = tuple(Size * Item.get("Range_Step", 1) if Index in Item["Size_Arguments"] else 0 if Index == Item.get("Range_Start_Argument") else 2 for Index in range(Item["Arguments"]))
-            yield "int", Size ** Depth, (), Args
+        Steps = (1, -1, 2, -3) if "Range_Step_Argument" in Item else (Item.get("Range_Step", 1),)
+        for Step in Steps:
+            Span_Maximum = Item.get("Range_Period")
+            Span_Maximum = Span_Maximum // math.gcd(Step, Span_Maximum) if Span_Maximum is not None else None
+            Span_Sizes = sorted({min(Size, Span_Maximum) for Size in Sizes}) if Span_Maximum is not None else Sizes
+            for Size in Span_Sizes if Item["Arguments"] else (1,):
+                Args = tuple(Step if Index == Item.get("Range_Step_Argument") else Size * Step if Index in Item["Size_Arguments"] else 0 if Index == Item.get("Range_Start_Argument") else 2 for Index in range(Item["Arguments"]))
+                yield "int", Size ** Depth, (), Args
         return
     import numpy as Numpy
     if Item["Kind"] == "median":
@@ -155,9 +160,12 @@ def _Representative_Cases(Item, Deadline=None):
                 from .Engine import _Scalar_Workload_Size
                 Size = _Scalar_Workload_Size(Item["Size_Plan"], Args)
             elif "Range_Start_Argument" in Item:
-                Begin, End, Step = Args[Item["Range_Start_Argument"]], Args[0], Item.get("Range_Step", 1)
+                Begin, End = Args[Item["Range_Start_Argument"]], Args[0]
+                Step = Args[Item["Range_Step_Argument"]] if "Range_Step_Argument" in Item else Item.get("Range_Step", 1)
                 if type(Begin) is not int:
                     raise ValueError("Scalar workload range starts must be exact integers")
+                if type(Step) is not int or Step == 0:
+                    raise ValueError("Scalar workload range strides must be nonzero exact integers")
                 Size = max(0, 1 + ((End - 1 - Begin) // Step if Step > 0 else (Begin - 1 - End) // -Step))
         else:
             Destination = (1 if Item["Mode"] == "copy" else 0) if Item["Kind"] == "span" else Item.get("Destination", 0)
@@ -206,6 +214,8 @@ def _Observe(Function, Args, Baseline_Name=None, Observation=None):
     Before = Statistics() if Statistics else (0, 0)
     Reduction = next((Value for Name, Value in getattr(Function, "__globals__", {}).items() if Name.startswith("_Pyceler_") and Name.endswith("Reduction_Stats") and callable(Value)), None)
     Previous = Reduction() if Reduction else None
+    Module = next((Value for Name, Value in getattr(Function, "__globals__", {}).items() if Name.startswith("_Pyceler_") and Name.endswith("Module_Stats") and callable(Value)), None)
+    Module_Before = Module() if Module else None
     Dispatch = next((Value for Name, Value in getattr(Function, "__globals__", {}).items() if Name.startswith("_Pyceler_") and Name.endswith("Dispatch_Stats") and callable(Value)), None) if Observation is not None else None
     Execution = {}
     if Dispatch:
@@ -214,7 +224,8 @@ def _Observe(Function, Args, Baseline_Name=None, Observation=None):
         nonlocal Fallback
         if Event == "call" and Frame.f_code.co_name == Baseline_Name and Frame.f_code.co_filename == "Reference.py":
             Fallback = True
-    if Baseline_Name:
+    Profiled = bool(Baseline_Name and Dispatch is None)
+    if Profiled:
         sys.setprofile(_Profile)
     try:
         with warnings.catch_warnings(record=True) as Notices:
@@ -226,25 +237,40 @@ def _Observe(Function, Args, Baseline_Name=None, Observation=None):
             else:
                 Outcome = ("return", _Value(Result), _Value((Inputs, Result)))
     finally:
-        if Baseline_Name:
+        if Profiled:
             sys.setprofile(None)
         if Dispatch:
             Execution = Dispatch().get("Execution", {})
             Dispatch(False)
-    Fallback = Fallback or Statistics is not None and Statistics()[1] > Before[1] or Execution.get("Reason") == "python_fallback"
+    Region_Current = Statistics() if Statistics else (0, 0)
+    Region_Entered = Region_Current[0] > Before[0]
+    Current = Reduction() if Reduction else None
+    Reduction_Entered = Reduction is not None and any(Current.get(Key, 0) > Previous.get(Key, 0) for Key in ("Serial_Calls", "Parallel_Calls"))
+    Module_Current = Module() if Module else None
+    Module_Entered = Module is not None and Module_Current.get("Native", 0) > Module_Before.get("Native", 0)
+    Module_Fallback = Module is not None and Module_Current.get("Fallbacks", 0) > Module_Before.get("Fallbacks", 0)
+    Missing_Execution = bool(Dispatch and not Execution and not (Module_Entered or Reduction_Entered or Region_Entered))
+    Fallback = Fallback or Region_Current[1] > Before[1] or Module_Fallback or Execution.get("Reason") == "python_fallback" or Missing_Execution
     if Observation is not None:
         Observation.update(Python_Fallback=bool(Fallback), Native_Entry=None, Actual_Team=None)
         if Execution:
             Observation.update(Native_Entry=Execution.get("Native_Entry"), Actual_Team=Execution.get("Actual_Team"),
                                Actual_Mode=Execution.get("Reason"), Fallback_Reason="runtime_guard" if Fallback else None)
-        if Reduction:
-            Current = Reduction()
-            Entered = any(Current.get(Key, 0) > Previous.get(Key, 0) for Key in ("Serial_Calls", "Parallel_Calls"))
-            if Entered or Observation.get("Proof_Reduction"):
-                Observation.update(Native_Entry=Entered, Actual_Team=Current.get("Last_Team") if Entered else None,
-                                   Actual_Mode=Current.get("Last_Mode"), Fallback_Reason=Current.get("Fallback_Reason"))
-        elif Statistics and Statistics()[0] > Before[0] and not Execution:
+        elif Module_Entered or Module_Fallback:
+            Observation.update(Native_Entry=Module_Entered, Actual_Team=Module_Current.get("Team") if Module_Entered else 0,
+                               Actual_Mode="native_parallel" if Module_Entered and Module_Current.get("Team", 0) > 1 else "native_serial" if Module_Entered else "python_fallback",
+                               Fallback_Reason="runtime_guard" if Fallback else None)
+        elif Reduction_Entered:
+            Observation.update(Native_Entry=True, Actual_Team=Current.get("Last_Team"),
+                               Actual_Mode=Current.get("Last_Mode"), Fallback_Reason=Current.get("Fallback_Reason"))
+        elif Region_Entered:
             Observation.update(Native_Entry=not Fallback, Actual_Mode="python" if Fallback else "serial")
+        elif Reduction and Observation.get("Proof_Reduction"):
+            Observation.update(Native_Entry=False, Actual_Mode="python_fallback" if Fallback else None, Fallback_Reason="runtime_guard" if Fallback else None)
+        if Module_Entered:
+            Observation["Native_Entry"] = True
+            if not Execution or not Execution.get("Native_Entry"):
+                Observation["Actual_Team"] = Module_Current.get("Team")
     return (Outcome, tuple(_Value(Arg) for Arg in Inputs), tuple((Notice.category, str(Notice.message)) for Notice in Notices)), Fallback
 
 def _Measure(Function, Args, Calls, Deadline=None):

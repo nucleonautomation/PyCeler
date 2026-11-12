@@ -33,7 +33,7 @@ class Scalar_Strides(unittest.TestCase):
 
     def test_Span_Boundaries_Match_Independent_Iteration(self):
         Source = (self._Root / "PyCeler" / "Scalar_Region_Runtime.pxi.in").read_text(encoding="utf-8")
-        Function = Source[Source.index("def _Pyceler_Region_Spans("):].replace("(object Values, object Period)", "(Values, Period)")
+        Function = Source[Source.index("def _Pyceler_Region_Divisor("):].replace("object ", "")
         Namespace = {}
         exec(Function, Namespace)
         Spans = Namespace["_Pyceler_Region_Spans"]
@@ -64,6 +64,7 @@ class Scalar_Strides(unittest.TestCase):
         Findings = Analyze(Source)
         self.assertEqual(len(Findings), 12)
         self.assertTrue(all(Item.Classification == "Scalar_Numeric_Region" for Item in Findings if Item.Function is not None), Findings)
+        self.assertTrue(all(Item.Classification == "Module_Scalar_Region" for Item in Findings if Item.Function is None), Findings)
         Binary = Compile(Source, self._Folder / "Native", Select=False, OpenMP=False)
         Program = (self._Root / "Test" / "Scalar_Strides_Probe.py").read_text(encoding="utf-8")
         Prefix = "import sys\nsys.path.insert(0, sys.argv[1])\nReference_Path = " + repr(str(Source)) + "\n"
@@ -83,7 +84,10 @@ class Scalar_Strides(unittest.TestCase):
         self.assertTrue(any(Case["Validation"].get("Serial") == "valid" for Case in Item["Cases"]), Item)
         self.assertTrue(all(Case["Size"] <= 3 for Case in Item["Cases"]), Item)
 
-    def test_Zero_And_Dynamic_Strides_Remain_Original(self):
+    def test_Zero_Stride_Remains_Original_And_Dynamic_Stride_Is_Extracted(self):
         Source = self._Folder / "Unknown_Strides.py"
         Source.write_text("def Zero(Events):\n    Total = 0\n    for Index in range(0, 10, 0):\n        Total += Index\n    Events.append(Total)\n\ndef Dynamic(Count, Step, Events):\n    Total = 0\n    for Index in range(0, Count, Step):\n        Total += Index\n    Events.append(Total)\n", encoding="utf-8")
-        self.assertTrue(all(Item.Change == "Keep original loop" for Item in Analyze(Source)))
+        Findings = {Item.Function: Item for Item in Analyze(Source)}
+        self.assertEqual(Findings["Zero"].Change, "Keep original loop")
+        self.assertEqual(Findings["Dynamic"].Classification, "Scalar_Numeric_Region")
+        self.assertIn("Snapshotted runtime stride", Findings["Dynamic"].Transformations)
