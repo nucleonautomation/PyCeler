@@ -13,18 +13,21 @@ def _Plan(Expression, Imports="import math", Names=("Left", "Right", "Output")):
     Function = Tree.body[-1]
     return Fast._Fast_Math_Plan(dict(Loops=[Function.body[0]], Indices=["Index"], Scalars=[], Locals=[], Output="Output", Names=list(Names), Math_Imports=Imports.splitlines()))
 
+def _Value(Plan):
+    return Plan["Program"][-1][2]
+
 class Fast_Binary_Plan(unittest.TestCase):
     def test_Exact_Arity_And_Ordered_Argument_Nodes(self):
         Plan = _Plan("math.fmod(math.sqrt(Left[Index]), math.log(Right[Index]))")
-        self.assertEqual(Plan["Version"], 3)
+        self.assertEqual(Plan["Version"], 4)
         self.assertEqual(Plan["Inputs"], ("Left", "Right"))
-        self.assertEqual(Plan["Expression"], ("call", "fmod", (("call", "sqrt", (("input", 0),)), ("call", "log", (("input", 1),)))))
+        self.assertEqual(_Value(Plan), ("call", "fmod", (("call", "sqrt", (("input", 0),)), ("call", "log", (("input", 1),)))))
         self.assertIn(("fmod", 2, "float", "Binary_Nonzero_Remainder"), Plan["Call_Contracts"])
 
     def test_Emit_Evaluates_Each_Argument_Once_In_Source_Order(self):
         Plan = _Plan("math.fmod(math.sqrt(Left[Index]), math.log(Right[Index]))")
         Lines, Variables = [], []
-        Fast._Fast_Emit(Plan["Expression"], Lines, Variables, Plan["Functions"], "_Test_")
+        Fast._Fast_Emit_Program(Plan["Program"], Lines, Variables, Plan["Functions"], "_Test_")
         Source = "\n".join(Lines)
         self.assertEqual(Source.count("_Test_sqrt("), 1)
         self.assertEqual(Source.count("_Test_log("), 1)
@@ -50,9 +53,9 @@ class Fast_Binary_Plan(unittest.TestCase):
         Integer = _Plan("math.copysign(math.fmod(Left[Index], Right[Index]), -0)")
         Floating = _Plan("math.copysign(math.fmod(Left[Index], Right[Index]), -0.0)")
         Boolean = _Plan("math.copysign(Left[Index], -math.isinf(Right[Index]))")
-        self.assertEqual(Integer["Expression"][2][1][0], "integer_negative")
-        self.assertEqual(Boolean["Expression"][2][1][0], "integer_negative")
-        self.assertEqual(Floating["Expression"][2][1][0], "negative")
+        self.assertEqual(_Value(Integer)[2][1][0], "integer_negative")
+        self.assertEqual(_Value(Boolean)[2][1][0], "integer_negative")
+        self.assertEqual(_Value(Floating)[2][1][0], "negative")
 
     def test_Binary_Guards_And_Unary_Arithmetic_Stay_Separate(self):
         for Expression in ("math.copysign(Left[Index], Right[Index])", "math.fmod(Left[Index], Right[Index])"):
@@ -62,5 +65,5 @@ class Fast_Binary_Plan(unittest.TestCase):
             self.assertIn("_Pyceler_Fast_4_Prange", Source)
             self.assertIn("_Pyceler_Fast_4_signbit(T", Source)
         Plan = _Plan("math.sin(Left[Index])", Names=("Left", "Output"))
-        self.assertEqual(Plan["Expression"], ("call", "sin", (("input", 0),)))
+        self.assertEqual(_Value(Plan), ("call", "sin", (("input", 0),)))
         self.assertEqual(Plan["Inputs"], ("Left",))

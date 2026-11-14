@@ -1,8 +1,8 @@
 # PyCeler
 
-This checkout contains **PyCeler 0.3.0**. Build from source to use this checkout, or install a published release with pip.
+This checkout contains **PyCeler 0.4.0**. Build from source to use this checkout, or install a published release with pip.
 
-Release status, 2026-11-12: version 0.3.0 includes the loop-analysis, scalar/module and math changes described below, including guarded two-argument `copysign`/`fmod` lowering. Runtime results recorded for the earlier 0.2.0 ba1 checkpoint do not qualify these exact release sources or wheels. Tests and benchmarks remain deferred at the user's request. Building a wheel does not update an installed package or publish to PyPI.
+Version 0.4.0 can extract numeric inner loops from surrounding Python control flow and compile guarded rectangular math and NumPy loops with multiple assignments or branches. Eligible loops get serial Cython and OpenMP candidates. PyCeler checks their behavior against Python and measures the whole call before choosing an implementation. See [the changelog](Log.md) for coverage and measured results.
 
 PyCeler looks for numeric loops in Python code and tries compiling them with Cython. A loop that clears an array, for example, can split the work across threads because each write is independent. An array prefix sum reads a preceding write and must keep that order. PyCeler checks which transformations apply, compares their results with Python, and measures whether they save time on the inputs it tried.
 
@@ -133,7 +133,7 @@ python -B Compile.py
 
 The built package is in `Build/Lib/PyCeler`. Its manifest records source/dependency fingerprints, artifact hashes and a build ID. Checkout imports and the test runner reject stale or modified binaries and name the rebuild command. The runner records the loaded engine path and build ID.
 
-Current Windows qualification discovered 271 tests on each of CPython 3.14.8 and 3.11.9: 269 passed and two POSIX-only deadline checks were explicitly skipped on each. Both builds have identical maintained package source hashes. Thirty fresh-process math observer probes passed per interpreter, both exact-wheel pipeline probes passed, and 14 additional same-wheel regressions passed on 3.11. These checks used AMD64 Python on an ARM64 Windows host. `Test/README.md` identifies the reports and the read-only inventory accounting for all 1,131 Python loop forms. Linux ARM64 WSL qualification is in progress; Linux AMD64 remains unverified.
+The earlier 0.2.0 Windows qualification discovered 271 tests on each of CPython 3.14.8 and 3.11.9: 269 passed and two POSIX-only deadline checks were explicitly skipped on each. Both builds have identical maintained package source hashes. Thirty fresh-process math observer probes passed per interpreter, both exact-wheel pipeline probes passed, and 14 additional same-wheel regressions passed on 3.11. These checks used AMD64 Python on an ARM64 Windows host. `Test/README.md` identifies the reports and the read-only inventory accounting for all 1,131 Python loop forms. Those counts apply to that earlier checkpoint.
 
 Extracted scalar regions support signed runtime range strides, preserving the captured range when a body rebinds its step variable. Branch binding proofs allow existing region planners to consume values assigned on both branches. Small supported loops can bypass span dispatch using their complete captured range size. `PYCELER_BUILD_TIMEOUT_SECONDS` enables a per-compiler-worker deadline; unset or zero leaves it unlimited. Deadline failure preserves existing published artifacts and prevents cache publication. It is not an aggregate optimization budget.
 
@@ -145,11 +145,11 @@ python -B Test/Run.py
 
 To verify the optimizer while deferring wheel creation, run `python -B Test/Run.py --no-wheels`. The report explicitly lists the two excluded packaging tests.
 
-For release packaging after verification, use the following commands. The example filename is for the Windows x64 build of 0.3.0. Running the verification command is separate from building the wheel.
+For release packaging after verification, use the following commands. The example filename is for the Windows x64 build of 0.4.0. Running the verification command is separate from building the wheel.
 
 ```sh
 python -B Compile.py wheel --library Build/Lib
-python -B Test/Verify_Wheel.py Build/Wheels/pyceler-0.3.0-cp311-abi3-win_amd64.whl
+python -B Test/Verify_Wheel.py Build/Wheels/pyceler-0.4.0-cp311-abi3-win_amd64.whl
 ```
 
 Use the wheel filename produced on your native host; Linux wheels use `linux_x86_64` or `linux_aarch64` tags. Wheel packaging is deterministic for identical built files. It does not claim manylinux qualification or identical native binaries across compiler runs. The maintained CI matrix builds and tests native Windows x64/Linux AMD64/Linux ARM64 on CPython 3.11 and 3.14, then verifies the same artifact on the other interpreter. Local verification does not imply those remote jobs have run. These source changes do not update an already published wheel.

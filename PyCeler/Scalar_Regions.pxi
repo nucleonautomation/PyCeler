@@ -11,25 +11,42 @@ cdef object _Scalar_Progress(object Node, str Index):
         return None
     return Left.right.value
 
-cdef void _Scalar_Region_Inputs(list Statements, set Defined, list Inputs) except *:
+cdef void _Scalar_Region_Flow(list Statements, set Defined, set Fresh, list Inputs, list Outputs) except *:
     for Node in Statements:
-        Values = [Node.value] if isinstance(Node, (ast.Assign, ast.AugAssign)) else [Node.test] if isinstance(Node, ast.If) else [Node]
-        if isinstance(Node, ast.AugAssign) and isinstance(Node.target, ast.Name) and Node.target.id not in Defined and Node.target.id not in Inputs:
-            Inputs.append(Node.target.id)
+        Assignments = []
+        if isinstance(Node, ast.Assign):
+            Assignments = _Scalar_Assignments(Node)
+            Values = [Value for Name, Value in Assignments]
+        elif isinstance(Node, ast.AugAssign) and isinstance(Node.target, ast.Name):
+            Value = ast.BinOp(left=ast.Name(id=Node.target.id, ctx=ast.Load()), op=Node.op, right=Node.value)
+            Assignments = [(Node.target.id, Value)]
+            Values = [Value]
+        elif isinstance(Node, ast.If):
+            Values = [Node.test]
+        elif isinstance(Node, ast.Pass):
+            continue
+        else:
+            raise _Unsupported_Scalar()
         for Value in Values:
             for Part in ast.walk(Value):
                 if isinstance(Part, ast.Name) and isinstance(Part.ctx, ast.Load) and Part.id not in Defined and Part.id not in Inputs:
                     Inputs.append(Part.id)
-        if isinstance(Node, ast.Assign):
-            for Target in Node.targets:
-                Defined.update(_Assigned(Target))
-        elif isinstance(Node, ast.AugAssign):
-            Defined.update(_Assigned(Node.target))
-        elif isinstance(Node, ast.If):
+        for Name, Value in Assignments:
+            Defined.add(Name)
+            if Name not in Outputs:
+                Outputs.append(Name)
+            if _Scalar_Fresh(Value):
+                Fresh.add(Name)
+            else:
+                Fresh.discard(Name)
+        if isinstance(Node, ast.If):
             Yes, No = Defined.copy(), Defined.copy()
-            _Scalar_Region_Inputs(Node.body, Yes, Inputs)
-            _Scalar_Region_Inputs(Node.orelse, No, Inputs)
+            Yes_Fresh, No_Fresh = Fresh.copy(), Fresh.copy()
+            _Scalar_Region_Flow(Node.body, Yes, Yes_Fresh, Inputs, Outputs)
+            _Scalar_Region_Flow(Node.orelse, No, No_Fresh, Inputs, Outputs)
             Defined.update(Yes & No)
+            Fresh.clear()
+            Fresh.update(Yes_Fresh & No_Fresh)
 
 cdef object _Scalar_Region_Plan(object Function, object Loop, set Available, str Scope):
     if not isinstance(Loop, ast.For) or not isinstance(Loop.target, ast.Name):
@@ -59,22 +76,19 @@ cdef object _Scalar_Region_Plan(object Function, object Loop, set Available, str
     if any(isinstance(Part, (ast.For, ast.While, ast.Call, ast.Return, ast.Break, ast.Continue, ast.Raise, ast.Try, ast.With,
                               ast.Yield, ast.YieldFrom, ast.NamedExpr, ast.Subscript, ast.Attribute)) for Part in Parts):
         return None
-    if any(isinstance(Part, ast.Assign) and not _Scalar_Fresh(Part.value) or isinstance(Part, ast.AugAssign) and not isinstance(Part.op, (ast.Add, ast.Sub, ast.Mult, ast.FloorDiv)) for Part in Parts):
-        return None
     if any(isinstance(Part, ast.Name) and isinstance(Part.ctx, ast.Store) and Part.id == Index for Part in Parts):
         return None
     Inputs = []
     Defined = {Index}
-    _Scalar_Region_Inputs(Statements, Defined, Inputs)
+    Fresh, Written = set(), []
+    try:
+        _Scalar_Region_Flow(Statements, Defined, Fresh, Inputs, Written)
+    except _Unsupported_Scalar:
+        return None
     if not set(Inputs) <= Available or "range" in Inputs:
         return None
-    Outputs = tuple(dict.fromkeys([Part.id for Part in Parts if isinstance(Part, ast.Name) and isinstance(Part.ctx, ast.Store)] + [Index]))
-    if not set(Outputs) <= Defined:
-        return None
-    Written = {Statement.target.id for Statement in Statements if isinstance(Statement, ast.AugAssign) and isinstance(Statement.target, ast.Name)}
-    Written.update(Statement.targets[0].id for Statement in Statements if isinstance(Statement, ast.Assign) and len(Statement.targets) == 1 and
-                   isinstance(Statement.targets[0], ast.Name) and isinstance(Statement.value, ast.BinOp))
-    if set(Outputs) - {Index} - Written:
+    Outputs = (*Written, Index)
+    if not set(Outputs) <= Defined or not set(Written) <= Fresh:
         return None
     Used = set(Inputs) | set(Outputs)
     Stop, Begin = "_Pyceler_Stop", "_Pyceler_Begin"
@@ -127,10 +141,11 @@ cdef object _Scalar_Region_Plan(object Function, object Loop, set Available, str
     Plan["Probe"] = ast.fix_missing_locations(Definition)
     return Plan
 
-cdef void _Scalar_Region_Block(object Function, list Statements, set Available, str Scope, dict Edits, dict Updates, set Shared) except *:
+cdef set _Scalar_Region_Block(object Function, list Statements, set Available, str Scope, dict Edits, dict Updates, set Shared):
     Bound = Available.copy()
     for Node in Statements:
-        if isinstance(Node, ast.For) and Node.lineno not in Edits and Node.lineno not in Shared and Node.end_lineno not in Shared:
+        Protected = any(Node.lineno <= Edit[1].end_lineno and Node.end_lineno >= Edit[1].lineno for Edit in Edits.values() if Edit[2] is Function)
+        if isinstance(Node, ast.For) and not Protected and not any(Node.lineno <= Line <= Node.end_lineno for Line in Shared):
             Plan = _Scalar_Region_Plan(Function, Node, Bound, Scope)
             if Plan is not None:
                 Edits[Node.lineno] = (Plan["Names"], Node, Function, Plan)
@@ -141,8 +156,14 @@ cdef void _Scalar_Region_Block(object Function, list Statements, set Available, 
         elif isinstance(Node, ast.AnnAssign) and Node.value is not None:
             Bound.update(_Assigned(Node.target))
         elif isinstance(Node, ast.If):
-            _Scalar_Region_Block(Function, Node.body, Bound, Scope, Edits, Updates, Shared)
+            Yes = _Scalar_Region_Block(Function, Node.body, Bound, Scope, Edits, Updates, Shared)
+            No = _Scalar_Region_Block(Function, Node.orelse, Bound, Scope, Edits, Updates, Shared)
+            Bound.update(Yes & No)
+        elif isinstance(Node, (ast.For, ast.While)) and Node.lineno not in Edits:
+            Local = Bound | _Assigned(Node.target) if isinstance(Node, ast.For) else Bound.copy()
+            _Scalar_Region_Block(Function, Node.body, Local, Scope, Edits, Updates, Shared)
             _Scalar_Region_Block(Function, Node.orelse, Bound, Scope, Edits, Updates, Shared)
+    return Bound
 
 cdef void _Find_Scalar_Regions(object Tree, list Findings, dict Edits) except *:
     Existing = {Edit[2] for Edit in Edits.values() if Edit[3] is None or not Edit[3].get("Region", False)}

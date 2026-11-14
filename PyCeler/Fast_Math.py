@@ -1,7 +1,7 @@
 import ast
 import math
 
-_Fast_Math_Version = 3
+_Fast_Math_Version = 4
 _Fast_Unary = frozenset(("sqrt", "cbrt", "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh", "exp", "exp2", "expm1", "log", "log10", "log1p", "fabs", "isfinite", "isinf", "isnan", "erf", "erfc"))
 _Fast_Binary = frozenset(("copysign", "fmod"))
 _Fast_Call_Contracts = {Name: dict(Arity=1, Inputs=("numpy", "float", "integer", "boolean"), Return="boolean" if Name in ("isfinite", "isinf", "isnan") else "float",
@@ -34,8 +34,19 @@ def _Fast_Imports(Plan):
     return Bindings
 
 def _Fast_Expression(Node, Plan, Bindings, Inputs, Calls):
-    if isinstance(Node, ast.Subscript) and isinstance(Node.value, ast.Name) and isinstance(Node.slice, ast.Name):
-        if Node.value.id in Plan["Names"] and Node.value.id != Plan["Output"] and Node.slice.id == Plan["Indices"][0]:
+    if isinstance(Node, ast.Name) and Node.id in Plan.get("Local_Types", {}):
+        return ("local", Plan["Local_Slots"].index(Node.id)), Plan["Local_Types"][Node.id]
+    if isinstance(Node, ast.IfExp):
+        Test = _Fast_Test(Node.test, Plan, Bindings, Inputs, Calls)
+        Yes, Yes_Kind = _Fast_Expression(Node.body, Plan, Bindings, Inputs, Calls)
+        No, No_Kind = _Fast_Expression(Node.orelse, Plan, Bindings, Inputs, Calls)
+        if Yes_Kind != No_Kind:
+            raise _Fast_Unsupported()
+        return ("conditional", Test, Yes, No), Yes_Kind
+    if isinstance(Node, ast.Subscript) and isinstance(Node.value, ast.Name):
+        Positions = Node.slice.elts if isinstance(Node.slice, ast.Tuple) else (Node.slice,)
+        Coordinates = tuple(Position.id if isinstance(Position, ast.Name) else None for Position in Positions)
+        if Node.value.id in Plan["Names"] and Node.value.id != Plan["Output"] and Coordinates == tuple(Plan["Indices"]):
             if Node.value.id not in Inputs:
                 Inputs.append(Node.value.id)
             return ("input", Inputs.index(Node.value.id)), "numpy"
@@ -77,26 +88,87 @@ def _Fast_Expression(Node, Plan, Bindings, Inputs, Calls):
         return ("arithmetic", Operator, Left, Right), "float"
     raise _Fast_Unsupported()
 
+def _Fast_Test(Node, Plan, Bindings, Inputs, Calls):
+    if isinstance(Node, ast.Compare) and len(Node.ops) == 1:
+        Operators = {ast.Lt: "<", ast.LtE: "<=", ast.Gt: ">", ast.GtE: ">=", ast.Eq: "==", ast.NotEq: "!="}
+        Operator = Operators.get(type(Node.ops[0]))
+        if Operator is None:
+            raise _Fast_Unsupported()
+        Left = _Fast_Expression(Node.left, Plan, Bindings, Inputs, Calls)[0]
+        Right = _Fast_Expression(Node.comparators[0], Plan, Bindings, Inputs, Calls)[0]
+        return "compare", Operator, Left, Right
+    if isinstance(Node, ast.BoolOp):
+        Values = [_Fast_Test(Value, Plan, Bindings, Inputs, Calls) for Value in Node.values]
+        Result = Values[-1]
+        for Value in reversed(Values[:-1]):
+            Result = ("conditional", Value, Result, ("literal", 0.0)) if isinstance(Node.op, ast.And) else ("conditional", Value, ("literal", 1.0), Result)
+        return Result
+    if isinstance(Node, ast.UnaryOp) and isinstance(Node.op, ast.Not):
+        return "compare", "==", _Fast_Test(Node.operand, Plan, Bindings, Inputs, Calls), ("literal", 0.0)
+    Value = _Fast_Expression(Node, Plan, Bindings, Inputs, Calls)[0]
+    return "compare", "!=", Value, ("literal", 0.0)
+
+def _Fast_Statements(Statements, Plan, Bindings, Inputs, Calls):
+    Program = []
+    for Statement in Statements:
+        if isinstance(Statement, ast.If):
+            Test = _Fast_Test(Statement.test, Plan, Bindings, Inputs, Calls)
+            Yes = dict(Plan, Local_Types=dict(Plan["Local_Types"]))
+            No = dict(Plan, Local_Types=dict(Plan["Local_Types"]))
+            Yes_Program = _Fast_Statements(Statement.body, Yes, Bindings, Inputs, Calls)
+            No_Program = _Fast_Statements(Statement.orelse, No, Bindings, Inputs, Calls)
+            Plan["Local_Types"] = {Name: Kind for Name, Kind in Yes["Local_Types"].items() if No["Local_Types"].get(Name) == Kind}
+            Program.append(("if", Test, Yes_Program, No_Program))
+            continue
+        if isinstance(Statement, ast.Pass):
+            continue
+        if isinstance(Statement, ast.Assign) and len(Statement.targets) == 1:
+            Target, Expression = Statement.targets[0], Statement.value
+        elif isinstance(Statement, ast.AugAssign) and isinstance(Statement.target, ast.Name):
+            Target = Statement.target
+            Expression = ast.BinOp(left=ast.Name(id=Target.id, ctx=ast.Load()), op=Statement.op, right=Statement.value)
+        else:
+            raise _Fast_Unsupported()
+        if isinstance(Target, ast.Name):
+            Name = Target.id
+        elif isinstance(Target, ast.Subscript) and isinstance(Target.value, ast.Name) and Target.value.id == Plan["Output"]:
+            Positions = Target.slice.elts if isinstance(Target.slice, ast.Tuple) else (Target.slice,)
+            if tuple(Position.id if isinstance(Position, ast.Name) else None for Position in Positions) != tuple(Plan["Indices"]):
+                raise _Fast_Unsupported()
+            Name = Plan["Result_Name"]
+        else:
+            raise _Fast_Unsupported()
+        Value, Kind = _Fast_Expression(Expression, Plan, Bindings, Inputs, Calls)
+        if Name not in Plan["Local_Slots"]:
+            Plan["Local_Slots"].append(Name)
+        Plan["Local_Types"][Name] = Kind
+        Program.append(("store", Plan["Local_Slots"].index(Name), Value))
+    return tuple(Program)
+
 def _Fast_Math_Plan(Plan):
-    if len(Plan["Loops"]) != 1 or len(Plan["Indices"]) != 1 or Plan["Scalars"] or Plan["Locals"]:
+    Dimensions = len(Plan["Indices"])
+    if Dimensions < 1 or len(Plan["Loops"]) != Dimensions or Plan["Scalars"]:
         return None
-    Loop = Plan["Loops"][0]
-    if len(Loop.body) != 1 or not isinstance(Loop.body[0], ast.Assign) or len(Loop.body[0].targets) != 1:
+    if Dimensions > 1 and tuple(Axis for Name, Axis in Plan.get("Bounds", ())) != tuple(range(Dimensions)):
         return None
-    Statement = Loop.body[0]
-    Target = Statement.targets[0]
-    if not isinstance(Target, ast.Subscript) or not isinstance(Target.value, ast.Name) or Target.value.id != Plan["Output"]:
-        return None
-    if not isinstance(Target.slice, ast.Name) or Target.slice.id != Plan["Indices"][0]:
-        return None
-    Inputs, Calls = [], set()
+    Loop = Plan["Loops"][-1]
+    Inputs, Calls, Program = [], set(), []
+    Result_Name = "_Pyceler_Output"
+    while Result_Name in (*Plan["Names"], *Plan["Locals"], *Plan["Indices"]):
+        Result_Name += "_X"
+    Context = dict(Plan, Local_Types={}, Local_Slots=[], Result_Name=Result_Name)
+    Bindings = _Fast_Imports(Plan)
     try:
-        Expression, Kind = _Fast_Expression(Statement.value, Plan, _Fast_Imports(Plan), Inputs, Calls)
+        Program = _Fast_Statements(Loop.body, Context, Bindings, Inputs, Calls)
+        if Result_Name not in Context["Local_Types"]:
+            return None
+        Expression = ("local", Context["Local_Slots"].index(Result_Name))
     except _Fast_Unsupported:
         return None
     if not Calls or not Inputs or set(Inputs) | {Plan["Output"]} != set(Plan["Names"]):
         return None
     return dict(Version=_Fast_Math_Version, Names=tuple(Plan["Names"]), Inputs=tuple(Inputs), Output=Plan["Output"], Expression=Expression,
+                Program=tuple(Program), Local_Count=len(Context["Local_Slots"]), Dimensions=Dimensions,
                 Bindings=tuple(sorted(Calls)), Functions=tuple(sorted({Name for Root, Name, Module in Calls})), Chunk=4096,
                 Call_Contracts=tuple((Name, _Fast_Call_Contracts[Name]["Arity"], _Fast_Call_Contracts[Name]["Return"], _Fast_Call_Contracts[Name]["Strategy"]) for Name in sorted({Name for Root, Name, Module in Calls})),
                 Backend_Requirements=tuple(sorted({_Fast_Call_Contracts[Name]["Backend"] for Root, Name, Module in Calls if _Fast_Call_Contracts[Name]["Backend"] is not None})),
@@ -106,11 +178,27 @@ def _Fast_Emit(Node, Lines, Variables, Functions, Prefix):
     Kind = Node[0]
     if Kind == "input":
         return "X" + str(Node[1])
+    if Kind == "local":
+        return "L" + str(Node[1])
     if Kind == "literal":
         return repr(Node[1])
     Target = "T" + str(len(Variables))
     Variables.append(Target)
-    if Kind in ("negative", "integer_negative"):
+    if Kind == "conditional":
+        Test = _Fast_Emit(Node[1], Lines, Variables, Functions, Prefix)
+        Lines.append(f"    if {Test}:")
+        for Keyword, Branch in ((None, Node[2]), ("else:", Node[3])):
+            if Keyword:
+                Lines.append("    " + Keyword)
+            Branch_Lines = []
+            Value = _Fast_Emit(Branch, Branch_Lines, Variables, Functions, Prefix)
+            Lines.extend("    " + Line for Line in Branch_Lines)
+            Lines.append(f"        {Target} = {Value}")
+    elif Kind == "compare":
+        Left = _Fast_Emit(Node[2], Lines, Variables, Functions, Prefix)
+        Right = _Fast_Emit(Node[3], Lines, Variables, Functions, Prefix)
+        Lines.append(f"    {Target} = 1.0 if {Left} {Node[1]} {Right} else 0.0")
+    elif Kind in ("negative", "integer_negative"):
         Operand = _Fast_Emit(Node[1], Lines, Variables, Functions, Prefix)
         Value = f"0.0 if {Operand} == 0.0 else -{Operand}" if Kind == "integer_negative" else f"-{Operand}"
         Lines.append(f"    {Target} = {Value}")
@@ -154,8 +242,24 @@ def _Fast_Emit(Node, Lines, Variables, Functions, Prefix):
                 Lines.extend([f"    if {Target} == 0.0:", "        Valid[0] = False", "        return 0.0"])
     return Target
 
+def _Fast_Emit_Program(Program, Lines, Variables, Functions, Prefix, Indent="    "):
+    for Instruction in Program:
+        Work = []
+        Value = _Fast_Emit(Instruction[2] if Instruction[0] == "store" else Instruction[1], Work, Variables, Functions, Prefix)
+        Lines.extend(Indent + Line[4:] for Line in Work)
+        if Instruction[0] == "store":
+            Lines.append(f"{Indent}L{Instruction[1]} = {Value}")
+        else:
+            Lines.append(f"{Indent}if {Value}:")
+            _Fast_Emit_Program(Instruction[2], Lines, Variables, Functions, Prefix, Indent + "    ")
+            Lines.append(Indent + "else:")
+            _Fast_Emit_Program(Instruction[3], Lines, Variables, Functions, Prefix, Indent + "    ")
+    if not Program:
+        Lines.append(Indent + "pass")
+
 def _Fast_Math_Kernel(Plan, Line, Parallel=False):
     Prefix = f"_Pyceler_Fast_{Line}_"
+    Dimensions = Plan.get("Dimensions", 1)
     Functions = sorted(set(Plan["Functions"]) | {"isfinite", "isinf", "isnan", "fabs", "signbit"})
     Lines = ["from libc.math cimport " + ", ".join(Name + " as " + Prefix + Name for Name in Functions),
              f"from libc.stdlib cimport malloc as {Prefix}Allocate, free as {Prefix}Free",
@@ -196,7 +300,8 @@ def _Fast_Math_Kernel(Plan, Line, Parallel=False):
         Test = f"Namespace.get({Root!r}) is not {Prefix}Math" if Module else f"Namespace.get({Root!r}) is not {Prefix}Functions[{Position}]"
         Lines.extend(["    if " + Test + ":", "        return False"])
     Lines.append("    return True")
-    Evaluation, Variables = [], []
+    Evaluation, Variables = [], ["L" + str(Index) for Index in range(Plan.get("Local_Count", 0))]
+    _Fast_Emit_Program(Plan.get("Program", ()), Evaluation, Variables, Functions, Prefix)
     Result = _Fast_Emit(Plan["Expression"], Evaluation, Variables, Functions, Prefix)
     Parameters = ", ".join([*("double X" + str(Index) for Index in range(len(Plan["Inputs"]))), "bint* Valid"])
     Lines.extend([f"@{Prefix}Division(True)", f"cdef inline double {Prefix}Value({Parameters}) noexcept nogil:"])
@@ -217,7 +322,7 @@ def _Fast_Math_Kernel(Plan, Line, Parallel=False):
     Lines.extend([f"@{Prefix}Bounds(False)", f"@{Prefix}Wrap(False)", f"cdef void {Prefix}Commit(double* Scratch, double[::1] Output, Py_ssize_t Begin, Py_ssize_t End) noexcept nogil:",
                   "    cdef Py_ssize_t Position", "    for Position in range(Begin, End):", "        Output[Position] = Scratch[Position - Begin]"])
     Lines.extend([f"cdef Py_ssize_t _Pyceler_Fast_Math_{Line}(tuple Args, object Baseline, object Iterator, bint Allow_Threads, int Thread_Count) except -1:",
-                  "    import numpy as N", "    import builtins as B", "    cdef dict Namespace = Baseline.__globals__", "    cdef Py_ssize_t Size, Done = 0, End, Part, Parts",
+                  "    import numpy as N", "    import builtins as B", "    cdef dict Namespace = Baseline.__globals__", "    cdef Py_ssize_t Size, Done = 0, End, Part, Parts, Width, Batch",
                   f"    cdef bint Checks[{Plan['Chunk']}]", "    cdef bint Valid, Used_Parallel", f"    cdef int Exceptions[{Plan['Chunk']}]", "    cdef int Flags", "    cdef double* Scratch = NULL",
                   "    cdef object Array", f"    cdef {Prefix}Address Output_Begin, Output_End, Input_Begin, Input_End", f"    cdef {Prefix}Environment Environment", f"    cdef {Prefix}Exception_State Prepared",
                   "    cdef double[::1] Output", f"    global {Prefix}Native_Elements, {Prefix}Parallel_Elements, {Prefix}Last_Team"])
@@ -227,23 +332,26 @@ def _Fast_Math_Kernel(Plan, Line, Parallel=False):
         Lines.extend(["    cdef int Team[1]", "    cdef int Workers"])
     if "Runtime_CPython_Libm_Erf" in Plan.get("Backend_Requirements", ()):
         Lines.extend([f"    if not {Prefix}Erf_Backend_Eligible:", "        return 0"])
+    if Dimensions > 1:
+        Lines.extend(["    if Namespace.get('range', Baseline.__builtins__.get('range')) is not B.range:", "        return 0"])
     Lines.extend([f"    if len(Args) != {len(Plan['Names'])} or B.type(Iterator) is not B.range or Iterator.start != 0 or Iterator.step != 1:", "        return 0",
-                  "    for Array in Args:", "        if B.type(Array) is not N.ndarray or Array.ndim != 1 or Array.dtype != N.dtype('float64') or Array.dtype.metadata is not None or not Array.flags.c_contiguous or not Array.flags.aligned:", "            return 0",
-                  f"    if not Args[{Output_Slot}].flags.writeable:", "        return 0", f"    Size = Args[{Output_Slot}].shape[0]",
-                  "    if Iterator.stop != Size or any(Array.shape[0] != Size for Array in Args):", "        return 0", "    if Size == 0:", "        return 0",
-                  f"    Output = Args[{Output_Slot}]", f"    Output_Begin = <{Prefix}Address>&Output[0]", "    Output_End = Output_Begin + Size * sizeof(double)"])
+                  "    for Array in Args:", f"        if B.type(Array) is not N.ndarray or Array.ndim != {Dimensions} or Array.dtype != N.dtype('float64') or Array.dtype.metadata is not None or not Array.flags.c_contiguous or not Array.flags.aligned:", "            return 0",
+                  f"    if not Args[{Output_Slot}].flags.writeable:", "        return 0", f"    Size = Args[{Output_Slot}].size",
+                  f"    if Iterator.stop != Args[{Output_Slot}].shape[0] or any(Array.shape != Args[{Output_Slot}].shape for Array in Args):", "        return 0", "    if Size == 0:", "        return 0",
+                  f"    Width = Size // Args[{Output_Slot}].shape[0]", f"    Batch = max(Width, ({Plan['Chunk']} // Width) * Width)",
+                  f"    Output = Args[{Output_Slot}].reshape(-1)", f"    Output_Begin = <{Prefix}Address>&Output[0]", "    Output_End = Output_Begin + Size * sizeof(double)"])
     for Index, Slot in enumerate(Source_Slots):
-        Lines.extend([f"    I{Index} = Args[{Slot}]", f"    Input_Begin = <{Prefix}Address>&I{Index}[0]", "    Input_End = Input_Begin + Size * sizeof(double)",
+        Lines.extend([f"    I{Index} = Args[{Slot}].reshape(-1)", f"    Input_Begin = <{Prefix}Address>&I{Index}[0]", "    Input_End = Input_Begin + Size * sizeof(double)",
                       "    if Input_Begin < Output_End and Output_Begin < Input_End:", "        return 0"])
     View_Args = ", ".join(f"I{Index}" for Index in range(len(Source_Slots)))
-    Lines.extend([f"    Scratch = <double*>{Prefix}Allocate({Plan['Chunk']} * sizeof(double))", "    if Scratch == NULL:", "        return 0", "    try:", "        while Done < Size:",
-                  f"            if not {Prefix}Exclusive() or not {Prefix}Bindings(Namespace):", "                return Done",
-                  f"            End = min(Size, Done + {Plan['Chunk']})", f"            if {Prefix}Get_Environment(&Environment) != 0:", "                return Done",
+    Lines.extend([f"    Scratch = <double*>{Prefix}Allocate(Batch * sizeof(double))", "    if Scratch == NULL:", "        return 0", "    try:", "        while Done < Size:",
+                  f"            if not {Prefix}Exclusive() or not {Prefix}Bindings(Namespace):", "                return Done // Width",
+                  "            End = Done + min(Size - Done, Batch)", f"            if {Prefix}Get_Environment(&Environment) != 0:", "                return Done // Width",
                   "            Used_Parallel = False", "            Parts = 1"])
     Evaluate_Call = f"{Prefix}Evaluate({View_Args}, Scratch, Done, End, Done, &Environment, &Exceptions[0])"
     if Parallel:
         Lines.extend([f"            if Allow_Threads and not {Prefix}In_Parallel():", "                Used_Parallel = True", "                Team[0] = 1",
-                      f"                Workers = Thread_Count if Thread_Count > 0 else {Prefix}Max_Threads()", "                Parts = min(End - Done, Workers)",
+                      f"                Workers = Thread_Count if Thread_Count > 0 else {Prefix}Max_Threads()", f"                Parts = min(End - Done, Workers, {Plan['Chunk']})",
                       f"                for Part in {Prefix}Prange(Parts, nogil=True, schedule='static', num_threads=Workers):",
                       "                    if Part == 0:", f"                        Team[0] = {Prefix}Team_Size()",
                       f"                    Checks[Part] = {Prefix}Evaluate({View_Args}, Scratch, Done + (End - Done) * Part // Parts, Done + (End - Done) * (Part + 1) // Parts, Done, &Environment, &Exceptions[Part])",
@@ -251,13 +359,13 @@ def _Fast_Math_Kernel(Plan, Line, Parallel=False):
     else:
         Lines.extend(["            with nogil:", "                Checks[0] = " + Evaluate_Call])
     Lines.extend(["            Valid = True", "            Flags = 0", "            for Part in range(Parts):", "                Valid = Valid and Checks[Part]", "                Flags |= Exceptions[Part]",
-                  f"            if not Valid or not {Prefix}Exclusive() or not {Prefix}Bindings(Namespace) or not Args[{Output_Slot}].flags.writeable:", "                return Done",
-                  f"            if Flags and {Prefix}Prepare_Exceptions(Flags, &Prepared) != 0:", "                return Done", f"            {Prefix}Commit(Scratch, Output, Done, End)",
+                  f"            if not Valid or not {Prefix}Exclusive() or not {Prefix}Bindings(Namespace) or not Args[{Output_Slot}].flags.writeable:", "                return Done // Width",
+                  f"            if Flags and {Prefix}Prepare_Exceptions(Flags, &Prepared) != 0:", "                return Done // Width", f"            {Prefix}Commit(Scratch, Output, Done, End)",
                   "            if Flags:", f"                {Prefix}Set_Exceptions(&Prepared, Flags)"])
     if Parallel:
         Lines.extend(["            if Used_Parallel:", f"                {Prefix}Parallel_Elements += End - Done", f"                {Prefix}Last_Team = Team[0]",
                       "                _Pyceler_Dispatch_Event('Execution', 'native_parallel', Team[0])", "            else:", f"                {Prefix}Last_Team = 1", "                _Pyceler_Dispatch_Event('Execution', 'native_serial', 1)"])
     else:
         Lines.extend([f"            {Prefix}Last_Team = 1", "            _Pyceler_Dispatch_Event('Execution', 'native_serial', 1)"])
-    Lines.extend([f"            {Prefix}Native_Elements += End - Done", "            Done = End", f"            {Prefix}Signals()", "            with nogil:", "                pass", "        return Done", "    finally:", f"        {Prefix}Free(Scratch)"])
+    Lines.extend([f"            {Prefix}Native_Elements += End - Done", "            Done = End", f"            {Prefix}Signals()", "            with nogil:", "                pass", "        return Done // Width", "    finally:", f"        {Prefix}Free(Scratch)"])
     return "\n".join(Lines) + "\n"

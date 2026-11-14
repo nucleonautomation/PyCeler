@@ -114,8 +114,8 @@ cdef list _Diagnostic_Blockers(object Loop, object Function, object Finding):
     Scalar = not Finding.Indexed_Reads and not Finding.Indexed_Writes
     Diagnostics = []
     if Function is None:
-        Diagnostics.append(_Diagnostic(Loop, "unproven_module_region", "Module-level scalar state is observable and mutable by signal handlers; native span extraction cannot preserve those updates.",
-                                       "Keep module execution in Python or move numeric work into a function with local state and a verified native plan."))
+        Diagnostics.append(_Diagnostic(Loop, "unproven_module_region", "No native scalar region was established for this module-level loop; eligible inner regions are considered separately.",
+                                       "Inspect nested control flow, arithmetic, definite assignments and observable-state requirements for the numeric region."))
     if Scalar and Function is not None:
         if Function.decorator_list:
             Diagnostics.append(_Diagnostic(Function, "decorated_function", "Whole-function scalar specialization cannot establish the behavior of this decorated function.",

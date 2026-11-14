@@ -85,6 +85,13 @@ cdef object _Map_Cell(object Node, tuple Indices):
 
 cdef tuple _Map_Expression(object Node, dict Plan):
     Names = Plan["Names"]
+    if isinstance(Node, ast.Name) and Node.id in Plan.get("Locals", {}):
+        return Plan["Locals"][Node.id]
+    if isinstance(Node, ast.IfExp):
+        Test = _Map_Condition(Node.test, Plan)
+        Yes, Yes_Bound = _Map_Expression(Node.body, Plan)
+        No, No_Bound = _Map_Expression(Node.orelse, Plan)
+        return f"({Yes} if {Test} else {No})", ("choice", Yes_Bound, No_Bound)
     Cell = _Map_Cell(Node, Plan["Indices"])
     if Cell in Names:
         Plan["Arrays"].add(Cell)
@@ -136,16 +143,40 @@ cdef str _Map_Assignment(object Node, dict Plan):
         Value = ast.BinOp(left=Target, op=Node.op, right=Node.value)
     else:
         raise _Unsupported_Map()
+    if isinstance(Target, ast.Name) and Target.id not in (*Plan["Names"], *Plan["Indices"], *Plan["Shape_Bindings"], "range", "len"):
+        Result, Bound = _Map_Expression(Value, Plan)
+        if Target.id not in Plan["Local_Slots"]:
+            Plan["Local_Slots"].append(Target.id)
+        Slot = "L" + str(Plan["Local_Slots"].index(Target.id))
+        Plan["Locals"][Target.id] = (Slot, Bound)
+        return f"{Slot} = {Result}"
     if _Map_Cell(Target, Plan["Indices"]) != Plan["Output"]:
         raise _Unsupported_Map(f"Write to {ast.unparse(Target)} does not match the returned array at the current indices; iteration independence is unproven.")
-    if isinstance(Value, ast.IfExp):
-        Test = _Map_Condition(Value.test, Plan)
-        Yes = _Map_Expression(Value.body, Plan)[0]
-        No = _Map_Expression(Value.orelse, Plan)[0]
-        Result = f"({Yes} if {Test} else {No})"
-    else:
-        Result = _Map_Expression(Value, Plan)[0]
+    Result = _Map_Expression(Value, Plan)[0]
+    Plan["Output_Written"] = True
     return f"V{Plan['Names'].index(Plan['Output'])}[Index] = {Result}"
+
+cdef list _Map_Block(list Statements, dict Plan, str Indent):
+    Lines = []
+    for Statement in Statements:
+        if Plan["Output_Written"]:
+            raise _Unsupported_Map("The output write must finish the element calculation on every path.")
+        if isinstance(Statement, ast.If):
+            Test = _Map_Condition(Statement.test, Plan)
+            Yes = dict(Plan, Locals=dict(Plan["Locals"]))
+            No = dict(Plan, Locals=dict(Plan["Locals"]))
+            Lines.append(Indent + "if " + Test + ":")
+            Lines.extend(_Map_Block(Statement.body, Yes, Indent + "    "))
+            if Statement.orelse:
+                Lines.append(Indent + "else:")
+                Lines.extend(_Map_Block(Statement.orelse, No, Indent + "    "))
+            Plan["Locals"] = {Name: (Value[0], ("choice", Value[1], No["Locals"][Name][1])) for Name, Value in Yes["Locals"].items() if Name in No["Locals"]}
+            Plan["Output_Written"] = Yes["Output_Written"] or No["Output_Written"]
+        elif isinstance(Statement, ast.Pass):
+            Lines.append(Indent + "pass")
+        else:
+            Lines.append(Indent + _Map_Assignment(Statement, Plan))
+    return Lines
 
 cdef object _Map_Plan(object Function, object Outer):
     if not isinstance(Function, ast.FunctionDef) or Function.decorator_list or getattr(Function, "type_params", ()):
@@ -173,7 +204,7 @@ cdef object _Map_Plan(object Function, object Outer):
                 return None
             Counters.append(Counter)
             Bounds.append(Bound)
-        if not Loops or len(Statements) != 1:
+        if not Loops or not Statements:
             return None
         Aliases = _Shape_Locals(Shape_Statements, Names, len(Loops))
     except _Unsupported_Map as Error:
@@ -190,22 +221,16 @@ cdef object _Map_Plan(object Function, object Outer):
         Arrays.add(Source)
     Statement = Statements[0]
     Plan = dict(Names=Names, Indices=Indices, Output=Output, Arrays=Arrays, Scalars=set(), Reads=set(), Comparison=False,
-                Arithmetic=[], Float_Literals=[], Integer_Literals=set(), Start=Body[0].lineno, Loops=Loops, Element=Statement)
+                Arithmetic=[], Float_Literals=[], Integer_Literals=set(), Start=Body[0].lineno, Loops=Loops,
+                Locals={}, Local_Slots=[], Shape_Bindings=set(Aliases), Output_Written=False, Element=ast.Module(body=Statements, type_ignores=[]))
     try:
-        if isinstance(Statement, ast.If):
-            if len(Statement.body) != 1 or len(Statement.orelse) > 1:
-                return None
-            Lines = ["if " + _Map_Condition(Statement.test, Plan) + ":", "    " + _Map_Assignment(Statement.body[0], Plan)]
-            if Statement.orelse:
-                Lines.extend(["else:", "    " + _Map_Assignment(Statement.orelse[0], Plan)])
-        else:
-            Lines = [_Map_Assignment(Statement, Plan)]
+        Lines = _Map_Block(Statements, Plan, "")
     except _Unsupported_Map as Error:
         return str(Error) or None
-    if Arrays & Plan["Scalars"] or Arrays | Plan["Scalars"] != set(Names):
+    if not Plan["Output_Written"] or Arrays & Plan["Scalars"] or Arrays | Plan["Scalars"] != set(Names):
         return None
     Plan["Lines"] = Lines
-    if len(Indices) == 1 and len(Names) == 2 and isinstance(Statement, ast.Assign) and isinstance(Statement.value, ast.Subscript) and isinstance(Statement.value.value, ast.Name):
+    if len(Statements) == 1 and len(Indices) == 1 and len(Names) == 2 and isinstance(Statement, ast.Assign) and isinstance(Statement.value, ast.Subscript) and isinstance(Statement.value.value, ast.Name):
         Source = Statement.value.value.id
         if (Source != Output and Source in Names and _Element(Statement.value, Source, Indices[0]) and not Aliases
                 and isinstance(Loops[0], ast.For) and _Bounds(Loops[0].iter) == (Output, 0)):

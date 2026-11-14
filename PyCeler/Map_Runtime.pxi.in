@@ -100,6 +100,8 @@ cdef tuple _Pyceler_Interval(tuple Recipe, dict Bounds):
     if Operation in ("scalar", "array"):
         return Bounds[Recipe[1]]
     Left, Right = _Pyceler_Interval(Recipe[1], Bounds), _Pyceler_Interval(Recipe[2], Bounds)
+    if Operation == "choice":
+        return _Pyceler_Builtins.min(Left[0], Right[0]), _Pyceler_Builtins.max(Left[1], Right[1])
     if Operation == "+":
         return Left[0] + Right[0], Left[1] + Right[1]
     if Operation == "-":

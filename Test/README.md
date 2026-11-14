@@ -1,8 +1,20 @@
 # Running the PyCeler tests
 
-The current release source is **0.3.0**. Its version assertions and wheel metadata fixtures are aligned with that version. Runtime tests and benchmarks have not been run for this release; the 0.2.0 results below are historical and do not establish 0.3.0 qualification.
+## Iterative hard optimization corpus — 2026-11-13
 
-Testing and benchmarks are stopped at the user's request on 2026-11-12. The commands below document how to resume after renewed authorization. Newly integrated binary-math source and tests have not run; the results below qualify the earlier installed ba1 checkpoint. Linux's full suite was interrupted when its registered WSL disk disappeared, so its full-suite/wheel qualification remains incomplete.
+Run `python -B Test/Exercise_Hard_Optimization.py --stage 3 --output Test_Run/Hard_Manual --benchmark` after loading the compiler environment. Stages 1, 2 and 3 progressively add ordered math temporaries, conditional/short-circuit math, and nested math and multi-statement NumPy kernels in two and three dimensions. Both serial and OpenMP binaries are compiled from the maintained eleven-function `Hard_Optimization_Loops.py` fixture. Reports include exact output bytes, returned output identity, input mutations, exceptions, native element counts, thread teams and complete-call timings at 64, 4096 and 262144 elements. Inputs and compilation are excluded from timing; one warmup and three alternating timed samples are used. Each timed native call must show native execution. Alias, shifted overlap, read-only/strided outputs, mismatched/empty shapes, float32 fallback, wide rows/slabs, integer overflow and rebound inner `range` calls are checked separately.
+
+`python -B -m unittest Test.Test_Hard_Optimization -v` runs the static coverage requirement, compiled correctness corpus without benchmarks, and a regression ensuring assignments to shape-bound aliases cannot incorrectly flatten later rows. It is also included in normal test discovery. These are guarded specializations: a declined runtime guard must preserve Python's values, mutations and exception order.
+
+The workload-ordering regression also requires an unboxed math candidate's float64 cases to run before integer and float32 probes, preserving every other case and its inputs. This lets a limited automatic-selection budget reach the candidate's supported dtype.
+
+## Compositional scalar extraction — 2026-11-13
+
+The user reauthorized optimizer testing. `python -B -m unittest Test.Test_Scalar_Flow -v` covers six assignment/control-flow forms in four function placements, with renamed equivalents, plus twelve module regions. The maintained corpus crosses conditional expressions, tuple assignments, temporary copies followed by arithmetic, cached literals and branch merges with direct loops, outer `for`/`while` loops and preceding branches. Static checks require all 60 intended numeric regions to be recognized; compiled checks compare 384 function cases and twelve module results with Python and require per-call native counter deltas on positive cases. Empty ranges, negative strides/moduli, zero divisors, integer overflow and final alias exclusions are included. The measured-selection check requires validated native observations without executing surrounding Python work. These cases are discovered automatically by `Test/Run.py`.
+
+The current release source is **0.4.0**. Its version assertions and wheel metadata fixtures are aligned with that version. Current focused scalar checks do not qualify every subsystem or the earlier release artifacts; the 0.2.0 results below are historical.
+
+The 2026-11-12 testing pause was lifted for benchmark and optimizer work on 2026-11-13. Newly integrated binary-math source and tests have not run; the historical results below qualify the earlier installed ba1 checkpoint. Linux's full suite was interrupted when its registered WSL disk disappeared, so its full-suite/wheel qualification remains incomplete.
 
 ## Historical 0.2.0 qualification — 2026-11-12
 

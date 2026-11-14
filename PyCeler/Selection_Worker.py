@@ -107,6 +107,8 @@ def _Cases(Item):
     Dtypes = (Numpy.int32, Numpy.int64, Numpy.float32, Numpy.float64)
     if Item.get("Pixel_Dtypes"):
         Dtypes += (Numpy.int8, Numpy.uint8, Numpy.int16, Numpy.uint16)
+    if Item.get("Unboxed_Math"):
+        Dtypes = (Numpy.float64, *(Dtype for Dtype in Dtypes if Dtype is not Numpy.float64))
     for Dtype in Dtypes:
         for Size in (16, 2048, 65536):
             Power = Size.bit_length() - 1

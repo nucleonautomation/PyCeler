@@ -26,6 +26,8 @@ cdef str _Map_Kernel(dict Plan, int Line, bint Parallel, bint Measured=False):
     Check_Args = ", ".join(repr(Value) for Value in Checks)
     Lines = ["@_Pyceler_Bounds(False)", "@_Pyceler_Wrap(False)",
              f"cdef inline void {Item}({Parameters}, Py_ssize_t Index) noexcept nogil:"]
+    if Plan.get("Local_Slots"):
+        Lines.append("    cdef _Pyceler_Value " + ", ".join("L" + str(Index) for Index in range(len(Plan["Local_Slots"]))))
     Lines.extend("    " + Statement for Statement in Plan["Lines"])
     Lines.extend(["", f"cdef void {Run}({Parameters}, bint Threaded):", "    cdef Py_ssize_t Index",
                   f"    cdef Py_ssize_t Count = V{Destination}.shape[0]"])

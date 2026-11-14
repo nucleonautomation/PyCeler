@@ -56,7 +56,7 @@ class Erf_Backend(unittest.TestCase):
             with self.subTest(Expression=Expression):
                 Plan = _Plan(Expression, Imports)
                 self.assertEqual(Plan["Backend_Requirements"], ("Runtime_CPython_Libm_Erf",))
-                self.assertEqual(Plan["Version"], 2)
+                self.assertEqual(Plan["Version"], 4)
 
     def test_Generated_Backend_Guard_Precedes_Array_Views_And_Allocation(self):
         Plan = _Plan("math.erf(Source[Index])")

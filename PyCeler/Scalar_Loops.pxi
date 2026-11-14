@@ -142,8 +142,12 @@ cdef void _Scalar_Block(list Statements, set Bound, dict Plan, str Indent, bint 
             raise _Unsupported_Scalar()
 
 cdef bint _Scalar_Fresh(object Expr):
+    if isinstance(Expr, ast.Constant) and type(Expr.value) is int and 0 <= Expr.value <= 256:
+        return True
     if isinstance(Expr, ast.IfExp):
         return _Scalar_Fresh(Expr.body) and _Scalar_Fresh(Expr.orelse)
+    if isinstance(Expr, ast.BinOp) and isinstance(Expr.op, ast.Mod):
+        return _Scalar_Fresh(Expr.left)
     return (isinstance(Expr, ast.BinOp) and isinstance(Expr.op, (ast.Add, ast.Sub, ast.Mult, ast.FloorDiv))
             and any(isinstance(Part, ast.Name) for Part in ast.walk(Expr)))
 

@@ -2,7 +2,7 @@ cdef str _Scalar_Region_Kernel(dict Plan, int Line):
     Names = Plan["Names"]
     Slots = Plan["Slots"]
     Floating = Plan.get("Floating", set())
-    Integers = [Slot for Name, Slot in Slots.items() if Name not in Floating]
+    Integers = [Slot for Name, Slot in Slots.items() if Name not in Floating] + Plan.get("Temporaries", [])
     Lines = [f"cdef object _Pyceler_Scalar_Region_{Line}({', '.join('object A' + str(Index) for Index in range(len(Names)))}):",
              "    import builtins as _Pyceler_Builtins", "    global _Pyceler_Region_Attempts", "    _Pyceler_Region_Attempts += 1", "    cdef unsigned int Ticks = 0",
              "    cdef _Pyceler_Int Cursor", "    cdef _Pyceler_Int " + ", ".join(Integers)]
