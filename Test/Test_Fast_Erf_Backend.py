@@ -8,9 +8,9 @@ import tokenize
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-
+# Regression checks for platform-qualified erf/erfc behavior.
 Root = Path(__file__).resolve().parents[1]
-Spec = importlib.util.spec_from_file_location("_Fast_Erf_Staged", Root / "PyCeler/Fast_Math.py")
+Spec = importlib.util.spec_from_file_location("PyCeler._Fast_Erf_Staged", Root / "PyCeler/Fast_Math.py")
 Fast = importlib.util.module_from_spec(Spec)
 Spec.loader.exec_module(Fast)
 
@@ -77,7 +77,7 @@ class Erf_Backend(unittest.TestCase):
 
     def test_Erf_Plan_Retains_Existing_Finite_Scratch_Commit_Contract(self):
         Source = Fast._Fast_Math_Kernel(_Plan("math.erfc(Source[Index])"), 7, True)
-        for Text in ("cdef volatile double", "not _Pyceler_Fast_7_isfinite(X0)", "_Pyceler_Fast_7_signbit(X0)", "Scratch[Position - Offset]", "if not Valid or not", "Prepare_Exceptions", "Set_Environment(&Previous)", "_Pyceler_Fast_7_Commit(Scratch"):
+        for Text in ("cdef volatile double", "not _Pyceler_Fast_7_Finite(X0)", "_Pyceler_Fast_7_signbit(X0)", "Scratch[Position - Offset]", "if not Valid or not", "Prepare_Exceptions", "Set_Environment(&Previous)", "_Pyceler_Fast_7_Commit(Scratch"):
             self.assertIn(Text, Source)
 
     def test_Private_Prefix_Rename_Preserves_Runtime_C_Symbol_And_User_Literals(self):

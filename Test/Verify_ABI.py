@@ -3,7 +3,7 @@ import json
 import os
 import sys
 from pathlib import Path
-
+# Isolated verification for verify abi.
 def _Main():
     Parser = argparse.ArgumentParser(description="Verify the built stable-ABI package and ABI_Loops module using this interpreter.")
     Parser.add_argument("native", type=Path, help="Directory containing the compiled ABI_Loops module")

@@ -11,7 +11,7 @@ cdef object _Scalar_Parallel_Tree(object Node, tuple Names):
         if Operator is not None:
             return (Operator, _Scalar_Parallel_Tree(Node.left, Names), _Scalar_Parallel_Tree(Node.right, Names))
     raise _Unsupported_Scalar()
-
+# Require a proof before parallelizing scalar reductions; arbitrary floating sums are not reassociated.
 cdef object _Scalar_Parallel_Plan(object Function, dict Plan):
     Body = Function.body[1:] if ast.get_docstring(Function, clean=False) is not None else Function.body
     if len(Body) != 3 or not isinstance(Body[0], ast.Assign) or len(Body[0].targets) != 1 or not isinstance(Body[0].targets[0], ast.Name):

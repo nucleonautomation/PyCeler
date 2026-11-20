@@ -13,7 +13,7 @@ from unittest.mock import patch
 from time import perf_counter_ns
 import numpy as Numpy
 from Survey_Source import _Filters
-
+# Test support/workload for survey verification.
 def _Load(Name, File):
     Spec = importlib.util.spec_from_file_location(Name, File)
     Module = importlib.util.module_from_spec(Spec)
@@ -111,7 +111,7 @@ def _Edges(Modules):
         Values = Numpy.arange(4096, dtype=Numpy.int32).reshape(2, 2048)
         Output = Numpy.empty_like(Values)
         Output.fill(-7)
-        Output.flags.writeable = False
+        Output.flags.writeable = False  # Guard rejection must preserve the original read-only-output error.
         return Values, Output, 3
     Cases = (
         ("list clear", "Clear_Profile", lambda: ([3, 7, -2],), None),

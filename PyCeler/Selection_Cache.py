@@ -11,7 +11,7 @@ import sysconfig
 import tempfile
 import tokenize
 from pathlib import Path
-
+# Cache selection evidence only for matching workloads, source, environment and toolchain identities.
 def _Normalize_Workloads(Workloads):
     if Workloads is None:
         return {}

@@ -4,7 +4,7 @@ import signal
 import sys
 import threading
 import time
-
+# Isolated verification for signal state.
 Spec = importlib.util.spec_from_file_location(sys.argv[2], sys.argv[1])
 Module = importlib.util.module_from_spec(Spec)
 sys.modules[sys.argv[2]] = Module

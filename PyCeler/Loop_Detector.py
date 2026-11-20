@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-
+# Public immutable finding records describe candidate loops, constraints and diagnostic evidence.
 @dataclass(frozen=True)
 class _Loop_Diagnostic:
     Code: str

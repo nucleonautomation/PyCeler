@@ -2,10 +2,10 @@ import hashlib
 import importlib.metadata
 import json
 from pathlib import Path
-
+# Reject a development import when compiled artifacts no longer match the maintained package sources.
 def _Digest(Value):
     return hashlib.sha256(json.dumps(Value, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
-
+# Content digests cover templates as well as Python/Cython modules so stale kernels cannot be reused.
 def _Source_State(Root):
     Root = Path(Root).resolve()
     Package = Root / "PyCeler"
@@ -20,7 +20,7 @@ def _Source_State(Root):
         except importlib.metadata.PackageNotFoundError:
             Dependencies[Name] = None
     return dict(Source_Fingerprint=_Digest(dict(Sources=Sources, Dependencies=Dependencies)), Sources=Sources, Dependencies=Dependencies)
-
+# Fail early on a source/build mismatch rather than silently running yesterday's optimizer.
 def _Verify_Development(Root, Package):
     Root, Package = Path(Root).resolve(), Path(Package).resolve()
     Hint = f"Run python -B Compile.py from {Root}."

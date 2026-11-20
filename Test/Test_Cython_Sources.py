@@ -2,7 +2,7 @@ from Test.Workspace import Temporary_Directory
 import unittest
 from pathlib import Path
 from PyCeler import Analyze, Convert
-
+# Regression checks for cython sources.
 class Cython_Source_Analysis(unittest.TestCase):
     _Directory = Path(__file__).resolve().parent / "Cython_Sources"
     _Run_Root = Path(__file__).resolve().parent.parent / "Test_Run"
@@ -26,7 +26,7 @@ class Cython_Source_Analysis(unittest.TestCase):
         self._Run_Root.mkdir(exist_ok=True)
         Source = self._Directory / "Native_Loops.pyx"
         Include = self._Directory / "Native_Helper.pxi"
-        with Temporary_Directory(prefix="Cython_Convert_", dir=self._Run_Root) as Folder:
+        with Temporary_Directory(prefix="Cython_Convert_", dir=self._Run_Root) as Folder:  # Keep generated sources and binaries outside the maintained fixture tree.
             Output = Convert(Source, Path(Folder) / "Output", Select=False)
             self.assertEqual(Output.read_bytes(), Source.read_bytes())
             self.assertEqual((Output.parent / Include.name).read_bytes(), Include.read_bytes())

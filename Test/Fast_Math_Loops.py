@@ -1,5 +1,5 @@
 import math as M
-
+# Test support/workload for math bindings, domains and floating environments.
 from math import sin as Wave
 
 def Map_acos(Source, Output):

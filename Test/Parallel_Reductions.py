@@ -3,7 +3,7 @@ def Modulo_Total(Count, Divisor):
     for Index in range(Count):
         Total += (Index * Index + Index * 7) % Divisor
     return Total
-
+# Test support/workload for proof-qualified reductions and actual worker teams.
 def Signed_Total(Begin, Stop, Offset):
     Total = 7
     for Index in range(Begin, Stop, 3):

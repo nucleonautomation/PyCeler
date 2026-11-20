@@ -4,7 +4,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import numpy as N
-
+# Isolated verification for actual native entry versus Python fallback.
 File = Path(sys.argv[1])
 Spec = importlib.util.spec_from_file_location("Dispatch_Kernels", File)
 Native = importlib.util.module_from_spec(Spec)
@@ -87,6 +87,12 @@ assert _Call("Read_Exact", (_Stream(b"abcdef"), 6), "native_serial", 1) == b"abc
 Values = [4, 7, 9]
 assert _Call("Clear_Elements", (Values,), "python_fallback", 0) is Values and Values == [0, 0, 0]
 Values = [-4, 7, -9]
+assert _Call("Clip_Negative", (Values,), "native_serial", 1) is Values and Values == [0, 7, 0]
+
+class _List(list):
+    pass
+
+Values = _List([-4, 7, -9])
 assert _Call("Clip_Negative", (Values,), "python_fallback", 0) is Values and Values == [0, 7, 0]
 Values = N.arange(8, dtype=N.int32)
 Output = N.zeros_like(Values)

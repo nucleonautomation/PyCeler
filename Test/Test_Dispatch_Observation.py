@@ -9,7 +9,7 @@ from unittest.mock import patch
 from PyCeler import Compile, Convert
 from Test.Survey_Source import _Stencil
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for actual native entry versus Python fallback.
 class Dispatch_Observation(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
@@ -23,14 +23,14 @@ class Dispatch_Observation(unittest.TestCase):
             Text = (self._Root / "Test" / Filename).read_text(encoding="utf-8")
             Definitions.extend(ast.get_source_segment(Text, Node) for Node in ast.parse(Text).body if isinstance(Node, ast.FunctionDef) and Node.name in Names)
         Definitions.append(_Stencil("Dispatch_Filter", ((1, 1, 1), (1, 1, 1), (1, 1, 1)), 9))
-        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:
+        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:  # Keep generated sources and binaries outside the maintained fixture tree.
             Folder = Path(Directory)
             Source = Folder / "Dispatch_Kernels.py"
             Source.write_text("\n\n".join(Definitions) + "\n", encoding="utf-8")
             with patch.dict(os.environ, PYCELER_BUILD_DIR=str(Folder / "Build"), OMP_NUM_THREADS="2", OMP_DYNAMIC="FALSE"):
                 Converted = Convert(Source, Folder / "Converted", OpenMP=True, Select=False, Elide_Temporaries=True)
                 Converted.write_text(Converted.read_text(encoding="utf-8") + "\nfrom openmp cimport omp_set_num_threads as _Test_Set\n\ndef _Test_Set_Threads(int Count):\n    _Test_Set(Count)\n", encoding="utf-8")
-                Binary = Compile(Converted, Folder / "Native", OpenMP=True, Convert=False)
+                Binary = Compile(Converted, Folder / "Native", OpenMP=True, Convert=False)  # Build a real extension; a static finding alone does not prove native execution.
                 Result = subprocess.run([sys.executable, "-I", "-B", str(self._Root / "Test" / "Dispatch_Observation_Probe.py"), str(Binary)],
                                         capture_output=True, text=True, timeout=120)
             self.assertEqual(Result.returncode, 0, Result.stdout + Result.stderr)

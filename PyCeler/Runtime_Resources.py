@@ -1,5 +1,5 @@
 from pathlib import Path
-
+# Load runtime templates; distribution builds embed these resources in a native module.
 def _Resource(Name):
     if Path(Name).name != Name or not (Name.endswith(".pxi.in") or Name == "Selection_Environment.py"):
         raise ValueError(f"Unknown PyCeler runtime resource: {Name}")

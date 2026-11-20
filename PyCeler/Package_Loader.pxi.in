@@ -1,4 +1,4 @@
-def _Pyceler_Register():
+def _Pyceler_Register():  # Register compiled package modules while preserving import names and package relationships.
     from importlib.machinery import ExtensionFileLoader
     from importlib.util import spec_from_file_location
     import sys

@@ -10,7 +10,7 @@ from unittest.mock import patch
 from PyCeler import Compile, Convert
 from Test import Test_Fast_Math
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for platform-qualified erf/erfc behavior.
 class Unboxed_Erf(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
     _Fixture = _Root / "Test/Fast_Erf_Loops.py"
@@ -62,7 +62,7 @@ for Module in (Original,Native):
         Comparisons += 1
 print(json.dumps(dict(Comparisons=Comparisons, Exact_Bits=True, Caller_Flags=True, Original_Literal_Identity=True)))
 '''
-        with Temporary_Directory(dir=self._Root / "Test_Run") as Folder:
+        with Temporary_Directory(dir=self._Root / "Test_Run") as Folder:  # Keep generated sources and binaries outside the maintained fixture tree.
             Folder = Path(Folder)
             Source = Folder / "Erf_Literals.py"
             Source.write_text(Text, encoding="utf-8")
@@ -76,7 +76,7 @@ print(json.dumps(dict(Comparisons=Comparisons, Exact_Bits=True, Caller_Flags=Tru
                 Generated += "def _Test_Force_Ordered(bint Disabled):\n    global " + ", ".join(Names) + "\n"
                 Generated += "\n".join(f"    {Name} = False if Disabled else {Name}_Saved" for Name in Names) + "\n"
                 Converted.write_text(Generated, encoding="utf-8")
-                Binary = Compile(Converted, Folder / "Native", Convert=False, OpenMP=False)
+                Binary = Compile(Converted, Folder / "Native", Convert=False, OpenMP=False)  # Build a real extension; a static finding alone does not prove native execution.
             Probe = Folder / "Probe.py"
             Probe.write_text(Program, encoding="utf-8")
             Process = subprocess.run([sys.executable, "-I", "-B", str(Probe), str(Binary), str(Source)], capture_output=True, text=True, timeout=120)

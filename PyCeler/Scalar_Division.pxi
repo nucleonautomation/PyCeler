@@ -23,7 +23,7 @@ cdef tuple _Scalar_Division_Expr(object Node, set Bound, dict Plan):
             raise _Unsupported_Scalar()
         return "_Pyceler_Float_" + Helper + "(" + Left + ", " + Right + ")", "float"
     return _Scalar_Expr(Node, Bound, Plan), "int"
-
+# Specialize scalar division patterns only when their numeric and failure contracts can be guarded.
 cdef object _Scalar_Division_Plan(object Function):
     if not isinstance(Function, ast.FunctionDef) or Function.decorator_list or getattr(Function, "type_params", ()):
         return None

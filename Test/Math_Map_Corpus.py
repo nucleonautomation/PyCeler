@@ -1,6 +1,6 @@
 import math
 import numpy as Numpy
-
+# Test support/workload for ordered library calls and scalar literal identity.
 def _Math_Map_Corpus():
     Definitions = ["import math\nimport cmath\nimport numpy as np\nfrom math import sin as Wave\nLiteral_Finite = 1.25\nLiteral_Zero = -0.0\nLiteral_Infinite = 1e10000\nLiteral_Tuple = (1.25, -0.0)\n"]
     Recipes = []

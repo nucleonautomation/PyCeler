@@ -5,7 +5,7 @@ def Scatter_Best(Cells, Scores, Best, Winners):
             Best[Cell] = Scores[I]
             Winners[Cell] = I
     return Winners
-
+# Test support/workload for classic dependencies.
 def Ordered_Moments(Values, Labels, Totals):
     for I in range(len(Values)):
         Totals[Labels[I]] += float(Values[I])

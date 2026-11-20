@@ -3,7 +3,7 @@ def Dynamic_Stride(Start, Stop, Step):
     for Index in range(Start, Stop, Step):
         Total += Index * 3
     return Total
-
+# Test support/workload for break/continue/else and scalar control flow.
 def Stride_Snapshot(Start, Stop, Step):
     Total = 0
     for Index in range(Start, Stop, Step):

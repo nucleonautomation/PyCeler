@@ -1,6 +1,6 @@
 class _Unsupported_Scalar(Exception):
     pass
-
+# Plan scalar loop arithmetic and control flow while preserving Python integer and identity semantics.
 cdef str _Scalar_Slot(str Name, dict Plan):
     return Plan["Slots"].setdefault(Name, "V" + str(len(Plan["Slots"])))
 
@@ -142,19 +142,31 @@ cdef void _Scalar_Block(list Statements, set Bound, dict Plan, str Indent, bint 
             raise _Unsupported_Scalar()
 
 cdef bint _Scalar_Fresh(object Expr):
-    if isinstance(Expr, ast.Constant) and type(Expr.value) is int and 0 <= Expr.value <= 256:
+    if isinstance(Expr, ast.Constant) and type(Expr.value) is int and -5 <= Expr.value <= 256:
         return True
     if isinstance(Expr, ast.IfExp):
         return _Scalar_Fresh(Expr.body) and _Scalar_Fresh(Expr.orelse)
     if isinstance(Expr, ast.BinOp) and isinstance(Expr.op, ast.Mod):
         return _Scalar_Fresh(Expr.left)
-    return (isinstance(Expr, ast.BinOp) and isinstance(Expr.op, (ast.Add, ast.Sub, ast.Mult, ast.FloorDiv))
+    if isinstance(Expr, ast.UnaryOp):
+        if isinstance(Expr.op, ast.UAdd):
+            return _Scalar_Fresh(Expr.operand)
+        if isinstance(Expr.op, (ast.USub, ast.Invert)):
+            if isinstance(Expr.operand, ast.Constant) and type(Expr.operand.value) is int:
+                Value = -Expr.operand.value if isinstance(Expr.op, ast.USub) else ~Expr.operand.value
+                return -5 <= Value <= 256
+            return any(isinstance(Part, ast.Name) for Part in ast.walk(Expr))
+    if isinstance(Expr, ast.BinOp) and isinstance(Expr.op, ast.RShift):
+        if isinstance(Expr.right, ast.Constant) and type(Expr.right.value) is int and Expr.right.value > 0:
+            return any(isinstance(Part, ast.Name) for Part in ast.walk(Expr))
+        return _Scalar_Fresh(Expr.left)
+    return (isinstance(Expr, ast.BinOp) and isinstance(Expr.op, (ast.Add, ast.Sub, ast.Mult, ast.FloorDiv, ast.BitAnd, ast.BitOr, ast.BitXor, ast.LShift, ast.Pow))
             and any(isinstance(Part, ast.Name) for Part in ast.walk(Expr)))
 
 cdef bint _Scalar_Result(object Expr, object Function, tuple Names):
-    if isinstance(Expr, ast.Constant) and type(Expr.value) is int and 0 <= Expr.value <= 256:
+    if isinstance(Expr, ast.Constant) and type(Expr.value) is int and -5 <= Expr.value <= 256:
         return True
-    if isinstance(Expr, (ast.BinOp, ast.IfExp)):
+    if isinstance(Expr, (ast.BinOp, ast.IfExp, ast.UnaryOp)):
         return _Scalar_Fresh(Expr)
     if not isinstance(Expr, ast.Name):
         return False
@@ -171,12 +183,14 @@ cdef bint _Scalar_Result(object Expr, object Function, tuple Names):
                 if isinstance(Value, ast.Name):
                     Copies.append((Target, Value.id))
                     continue
-                if isinstance(Value, ast.Constant) and type(Value.value) is int and 0 <= Value.value <= 256:
+                if isinstance(Value, ast.Constant) and type(Value.value) is int and -5 <= Value.value <= 256:
                     continue
                 if not _Scalar_Fresh(Value):
                     Uncertain.add(Target)
-        elif isinstance(Node, ast.AugAssign) and isinstance(Node.target, ast.Name) and not isinstance(Node.op, (ast.Add, ast.Sub, ast.Mult, ast.FloorDiv)):
-            Uncertain.add(Node.target.id)
+        elif isinstance(Node, ast.AugAssign) and isinstance(Node.target, ast.Name):
+            Value = ast.BinOp(left=ast.Name(id=Node.target.id, ctx=ast.Load()), op=Node.op, right=Node.value)
+            if not _Scalar_Fresh(Value):
+                Uncertain.add(Node.target.id)
     while True:
         Added = {Target for Target, Source in Copies if Source in Uncertain} - Uncertain
         if not Added:

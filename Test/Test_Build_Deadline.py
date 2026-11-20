@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from PyCeler import Native_Build as B
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for bounded builds and compiler-child cleanup.
 class Build_Deadline(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
@@ -215,13 +215,13 @@ class Build_Deadline_Processes(unittest.TestCase):
 
     def test_Real_Bounded_Compile_And_Expired_Rebuild_Preserve_Published_Bytes(self):
         from PyCeler import Compile
-        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:
+        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:  # Keep generated sources and binaries outside the maintained fixture tree.
             Folder = Path(Directory)
             Source = Folder / "Bounded_Compile.pyx"
             Source.write_text("def Value():\n    return 73\n", encoding="utf-8")
             Environment = dict(PYCELER_BUILD_DIR=str(Folder / "Build"), PYCELER_BUILD_TIMEOUT_SECONDS="60")
             with patch.dict(os.environ, Environment):
-                Binary = Compile(Source, Folder / "Output", Convert=False, OpenMP=False, Cache=False)
+                Binary = Compile(Source, Folder / "Output", Convert=False, OpenMP=False, Cache=False)  # Build a real extension; a static finding alone does not prove native execution.
             Logs = list((Folder / "Build/Logs").glob("*.log"))
             self.assertEqual(len(Logs), 1)
             Records = [json.loads(Line.partition(": ")[2]) for Line in Logs[0].read_text(encoding="utf-8").splitlines() if Line.startswith("Build deadline: ")]

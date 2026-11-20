@@ -4,7 +4,7 @@ import io
 import sys
 from types import SimpleNamespace
 import Scalar_Regions as Native
-
+# Isolated verification for numeric spans around callbacks and continuation state.
 Spec = importlib.util.spec_from_file_location("Original_Scalar_Regions", Reference_Path)
 Original = importlib.util.module_from_spec(Spec)
 Spec.loader.exec_module(Original)

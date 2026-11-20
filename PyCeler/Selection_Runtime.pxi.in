@@ -6,7 +6,7 @@ cdef inline int _Pyceler_Dispatch_Choice(int Mode, object Reason, object Size=No
         _Pyceler_Dispatch_Info.clear()
         _Pyceler_Dispatch_Info["Selection"] = {"Mode": Mode, "Reason": Reason, "Size": Size, "Dtype": Key}
     return Mode
-
+# Choose a measured implementation for the current workload and environment without benchmarking calls.
 cdef int _Pyceler_Choose(object Value, bint Scalar, dict Table, object Scan=None, object Minimum=0) except -1:
     import builtins as _Pyceler_Builtins
     import sys as _Pyceler_Sys

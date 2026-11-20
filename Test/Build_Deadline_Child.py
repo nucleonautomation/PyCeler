@@ -5,7 +5,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-
+# Test support/workload for bounded builds and compiler-child cleanup.
 def _Ready(Folder, Role, Token):
     Temporary = Folder / (Role + ".pending")
     Temporary.write_text(json.dumps(dict(Role=Role, Pid=os.getpid(), Token=Token)), encoding="utf-8")

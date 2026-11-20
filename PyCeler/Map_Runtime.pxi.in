@@ -1,7 +1,7 @@
 from libc.stdint cimport int8_t as _Pyceler_Map_I8, uint8_t as _Pyceler_Map_U8, int16_t as _Pyceler_Map_I16, uint16_t as _Pyceler_Map_U16, int32_t as _Pyceler_I32, int64_t as _Pyceler_I64
 from libc.math cimport fabs as _Pyceler_Abs, isfinite as _Pyceler_Finite, ldexp as _Pyceler_Ldexp, floor as _Pyceler_Floor, signbit as _Pyceler_Signbit
 from libc.float cimport FLT_MAX as _Pyceler_Float_Max
-
+# Guard elementwise maps against dtype, aliasing, overflow and floating-environment changes.
 cdef extern from "fenv.h":
     int _Pyceler_Nearest "FE_TONEAREST"
     int _Pyceler_Rounding "fegetround"() noexcept

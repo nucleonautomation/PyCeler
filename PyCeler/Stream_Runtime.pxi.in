@@ -1,7 +1,7 @@
 cdef class _Pyceler_Chunks:
     cdef object _Value
     cdef bytearray _Buffer
-
+# Support chunked byte-stream execution without changing ownership or observable read boundaries.
     def __cinit__(self):
         self._Value = b""
 

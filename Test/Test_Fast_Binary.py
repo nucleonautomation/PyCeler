@@ -8,14 +8,14 @@ from unittest.mock import patch
 from PyCeler import Compile, Convert
 from Test import Test_Fast_Math
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for binary libm domains and signed-zero behavior.
 class Fast_Binary_Math(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
     def test_Binary_Exact_Bits_Flags_Argument_Order_Prefixes_And_Worker_State(self):
         Fixture = self._Root / "Test/Fast_Binary_Loops.py"
         Original_Bytes = Fixture.read_bytes()
-        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:
+        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:  # Keep generated sources and binaries outside the maintained fixture tree.
             Folder = Path(Directory)
             for Parallel in (False, True):
                 with self.subTest(Parallel=Parallel):
@@ -37,7 +37,7 @@ class Fast_Binary_Math(unittest.TestCase):
                         if Parallel:
                             Text += Test_Fast_Math.Unboxed_Math._Worker_Probe
                         Converted.write_text(Text, encoding="utf-8")
-                        Binary = Compile(Converted, Folder / ("Parallel" if Parallel else "Serial"), Convert=False, OpenMP=Parallel)
+                        Binary = Compile(Converted, Folder / ("Parallel" if Parallel else "Serial"), Convert=False, OpenMP=Parallel)  # Build a real extension; a static finding alone does not prove native execution.
                         Result = subprocess.run([sys.executable, "-I", "-B", str(self._Root / "Test/Fast_Binary_Probe.py"), str(Binary), str(Source), "parallel" if Parallel else "serial"], capture_output=True, text=True, timeout=180)
                     self.assertEqual(Result.returncode, 0, Result.stdout + Result.stderr)
                     Report = json.loads(Result.stdout)

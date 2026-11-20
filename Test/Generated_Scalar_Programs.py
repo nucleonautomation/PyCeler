@@ -1,5 +1,5 @@
 import random
-
+# Test support/workload for generated scalar programs.
 def _Expression(Generator, Depth):
     if not Depth or Generator.randrange(5) == 0:
         return Generator.choice(("Index", "Value", "1", "7", "(-3)"))

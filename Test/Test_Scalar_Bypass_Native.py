@@ -10,12 +10,12 @@ from PyCeler import Compile, Convert
 from Test.Generated_Source import _Python_Source
 from Test import Test_Scalar_Bypass as Bypass_Source
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for scalar bypass native.
 class Scalar_Bypass_Native(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
     def test_Compiled_Captured_Range_Bypass_And_Real_Native_Spans(self):
-        with Temporary_Directory(dir=self._Root / 'Test_Run') as Folder:
+        with Temporary_Directory(dir=self._Root / 'Test_Run') as Folder:  # Keep generated sources and binaries outside the maintained fixture tree.
             Work = Path(Folder)
             Source = Work / 'Bypass_Native.py'
             Text = "Collision = '_Pyceler_'\n" + Bypass_Source.Scalar_Bypass._Source.replace('Index % 6', 'Index % 4096')
@@ -25,7 +25,7 @@ class Scalar_Bypass_Native(unittest.TestCase):
             Cached = ({Line: Table}, None, dict(Format='PyCeler selection 1', Items=[], Controlled_Policy_Test=True))
             with patch.dict(os.environ, PYCELER_BUILD_DIR=str(Work / 'Build')), patch('PyCeler.Engine._Cache_Read', return_value=Cached) as Read:
                 Converted = Convert(Source, Work / 'Converted', OpenMP=False, Cache=False)
-                Binary = Compile(Converted, Work / 'Native', Convert=False, OpenMP=False)
+                Binary = Compile(Converted, Work / 'Native', Convert=False, OpenMP=False)  # Build a real extension; a static finding alone does not prove native execution.
             Read.assert_called_once()
             Generated = _Python_Source(Converted.read_text(encoding='utf-8'))
             self.assertIn('_Pyceler_XRegion_Count', Generated)

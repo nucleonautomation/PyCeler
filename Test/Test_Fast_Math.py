@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 import unittest
@@ -8,7 +9,7 @@ from unittest.mock import patch
 from PyCeler import Analyze, Compile, Convert
 from PyCeler.Selection_Worker import _Observe
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for math bindings, domains and floating environments.
 class Unboxed_Math(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
     _Fixture = _Root / "Test" / "Fast_Math_Loops.py"
@@ -125,10 +126,37 @@ def _Test_Thread_Settings(int Threads, int Dynamic):
         Converted = Convert(Source, self._Folder / "Huge_Converted", Select=False).read_text(encoding="utf-8")
         self.assertNotIn("cdef Py_ssize_t _Pyceler_Fast_Math_", Converted)
 
+    def test_Math_Error_State_Is_Local_To_Each_Worker(self):
+        Source = self._Folder / "Thread_Error.py"
+        Source.write_text("import math\ndef Compute(Source, Output):\n    for Index in range(len(Source)):\n        Output[Index] = math.exp(Source[Index])\n    return Output\n", encoding="utf-8")
+        Converted = Convert(Source, self._Folder / "Source", Select=False, OpenMP=True)
+        Text = Converted.read_text(encoding="utf-8")
+        Address = re.search(r"int\* (_Pyceler_\w+_Error_Address)\(\) noexcept nogil", Text)[1]
+        Probe = '''
+from cython.parallel cimport prange as _Error_Threads
+from libc.stdint cimport uintptr_t
+
+def Worker_Error():
+    cdef int Position, Previous[2], Seen[2]
+    cdef uintptr_t Addresses[2]
+    for Position in _Error_Threads(2, nogil=True, num_threads=2, schedule='static'):
+        Addresses[Position] = <uintptr_t>ERROR_ADDRESS()
+        Previous[Position] = (<int*>Addresses[Position])[0]
+        (<int*>Addresses[Position])[0] = 100 + Position
+        Seen[Position] = ERROR_ADDRESS()[0]
+        (<int*>Addresses[Position])[0] = Previous[Position]
+    return Addresses[0] != Addresses[1], Seen[0], Seen[1]
+'''
+        Converted.write_text(Text + Probe.replace("ERROR_ADDRESS", Address), encoding="utf-8")
+        Binary = Compile(Converted, self._Folder / "Native", Convert=False, OpenMP=True)  # Build a real extension; a static finding alone does not prove native execution.
+        Program = "import importlib.util,sys\ns=importlib.util.spec_from_file_location('Thread_Error',sys.argv[1])\nm=importlib.util.module_from_spec(s)\ns.loader.exec_module(m)\nassert m.Worker_Error()==(True,100,101),m.Worker_Error()\n"
+        Result = subprocess.run([sys.executable, "-I", "-B", "-c", Program, str(Binary)], capture_output=True, text=True, timeout=60)
+        self.assertEqual(Result.returncode, 0, Result.stdout + Result.stderr)
+
     def test_Observation_Profiles_Uninstrumented_Fallback(self):
         Namespace = {}
         exec(compile("def Original(Value):\n    return Value\ndef Candidate(Value):\n    return Original(Value)\n", "Reference.py", "exec"), Namespace)
-        Observation = {}
+        Observation = {}  # Record actual native entry separately from correctness of the returned result.
         Outcome, Fallback = _Observe(Namespace["Candidate"], (7,), "Original", Observation)
         self.assertTrue(Fallback, Observation)
         self.assertTrue(Observation["Python_Fallback"])

@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 from Test.Run_Docker import _Command, _Execute
-
+# Regression checks for docker lifecycle.
 class Docker_Lifecycle(unittest.TestCase):
     def test_Disposable_Container_And_Persistent_Output(self):
         for Architecture in ("amd64", "arm64"):

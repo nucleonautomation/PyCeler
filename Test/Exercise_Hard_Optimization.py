@@ -6,7 +6,7 @@ import platform
 import subprocess
 import sys
 from pathlib import Path
-
+# Test support/workload for exercise hard optimization.
 def _Run():
     Parser = argparse.ArgumentParser()
     Parser.add_argument("--stage", type=int, choices=(1, 2, 3), default=3)

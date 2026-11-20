@@ -5,7 +5,7 @@ import os
 import platform
 import sys
 from pathlib import Path
-
+# Isolated verification for installed-package contents and isolated native loading.
 def _Run():
     Parser = argparse.ArgumentParser(description="Exercise an isolated pip-installed PyCeler wheel.")
     Parser.add_argument("library", type=Path)

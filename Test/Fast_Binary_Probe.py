@@ -8,7 +8,7 @@ import types
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import numpy as N
-
+# Isolated verification for binary libm domains and signed-zero behavior.
 def _Load(Name, File):
     Spec = importlib.util.spec_from_file_location(Name, File)
     Module = importlib.util.module_from_spec(Spec)

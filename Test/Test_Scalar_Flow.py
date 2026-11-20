@@ -8,7 +8,7 @@ from unittest.mock import patch
 from PyCeler import Analyze, Compile, Convert
 from Test.Scalar_Flow_Corpus import Corpus
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for scalar data flow and equivalent source rewrites.
 class Scalar_Flow(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
@@ -35,7 +35,7 @@ class Scalar_Flow(unittest.TestCase):
         self.assertEqual(self._Source.read_bytes(), Original)
 
     def test_Compiled_Combinations_And_Fallbacks_Match_Python(self):
-        Binary = Compile(self._Source, self._Folder / "Native", Select=False, OpenMP=True)
+        Binary = Compile(self._Source, self._Folder / "Native", Select=False, OpenMP=True)  # Build a real extension; a static finding alone does not prove native execution.
         Result = subprocess.run([sys.executable, "-I", "-B", str(self._Root / "Test/Scalar_Flow_Probe.py"), str(self._Source), str(Binary)], capture_output=True, text=True, timeout=120)
         self.assertEqual(Result.returncode, 0, Result.stdout + Result.stderr)
         Report = json.loads(Result.stdout)

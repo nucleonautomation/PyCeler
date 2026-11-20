@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-
+# Measurement harness for numeric spans around callbacks and continuation state.
 def _Source(Iterations, Operator, Wrapped):
     Lines = ["import time", "start = time.perf_counter()", "total = 0", f"iterations = {Iterations}",
              "for i in range(iterations):", f"    total += (i * i + i * 7) {Operator} 999983",
@@ -47,7 +47,7 @@ def _Main():
             Source = Folder / (Name + ".py")
             Source.write_text(_Source(Args.iterations, Operator, Wrapped), encoding="utf-8")
             Findings = Analyze(Source)
-            Binary = Compile(Source, Folder / "Native", OpenMP=False)
+            Binary = Compile(Source, Folder / "Native", OpenMP=False)  # Build a real extension; a static finding alone does not prove native execution.
             Python = _Run(Source, False)
             Native = _Run(Binary, True)
             if Python["Value"] != Native["Value"] or Python["Progress"] != Native["Progress"]:

@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 from PyCeler import Analyze, Convert, Loop_Finding
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for diagnostics.
 class Optimization_Diagnostics(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
@@ -108,9 +108,10 @@ class Optimization_Diagnostics(unittest.TestCase):
         with patch("PyCeler.Engine._Build", side_effect=RuntimeError("simulated compiler failure")):
             Output = Convert(self._Root / "Test" / "Numeric_Loops.py", self._Folder / "Converted")
         Report = json.loads(Output.with_suffix(".selection.json").read_text(encoding="utf-8"))
-        self.assertEqual(Report["Summary"]["Candidate_Regions"], 1)
+        self.assertEqual(Report["Summary"]["Candidate_Regions"], 2)
         self.assertEqual(Report["Summary"]["Native_Selected_Regions"], 0)
-        self.assertEqual(Report["Items"][0]["Status"], "no_native_candidate_built")
+        self.assertEqual({Item['Function'] for Item in Report['Items']}, {'Clear_Elements', 'Prefix_Sum'})
+        self.assertTrue(all(Item['Status'] == 'no_native_candidate_built' for Item in Report['Items']))
         self.assertIn("separate operation", Report["Summary"]["Scope"])
 
     def test_Cli_Prints_Selection_Summary(self):

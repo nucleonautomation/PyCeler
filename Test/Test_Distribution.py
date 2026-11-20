@@ -6,12 +6,12 @@ import unittest
 from pathlib import Path
 from Test.Workspace import Temporary_Directory
 import PyCeler
-
+# Regression checks for distribution.
 class Installed_Distribution(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
     def test_Binaries_And_Init_Run_The_Public_Pipeline(self):
-        with Temporary_Directory(dir=self._Root / "Test_Run") as Folder:
+        with Temporary_Directory(dir=self._Root / "Test_Run") as Folder:  # Keep generated sources and binaries outside the maintained fixture tree.
             Work = Path(Folder)
             Distribution = Work / "Distribution"
             Package = Distribution / "PyCeler"
@@ -25,7 +25,7 @@ class Installed_Distribution(unittest.TestCase):
             Source.write_text("def Clear(Values):\n    for Index in range(len(Values)):\n        Values[Index] = 0\n    return Values\n", encoding="utf-8")
             Program = "\n".join((
                 "import json, sys", "from pathlib import Path", "sys.path.insert(0, sys.argv[1])", "import PyCeler",
-                "assert PyCeler.__name__ == 'PyCeler' and PyCeler.__version__ == '0.4.0'",
+                "assert PyCeler.__name__ == 'PyCeler' and PyCeler.__version__ == '0.5.0'",
                 "assert PyCeler.Analyze.__module__ == 'PyCeler.Engine'",
                 "assert PyCeler.Loop_Finding.__module__ == 'PyCeler.Loop_Detector'",
                 "Work = Path(sys.argv[2])", "Source = Work / 'Kernel.py'", "assert len(PyCeler.Analyze(Source)) == 1",

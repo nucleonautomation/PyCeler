@@ -3,7 +3,7 @@ cdef list _Thread_Guard(bint Parallel):
         return ["    cdef bint Threaded = False"]
     return ["    from threading import current_thread, main_thread",
             "    cdef bint Threaded = Allow_Threads and current_thread() is main_thread() and not _Pyceler_In_Parallel()"]
-
+# Emit supported stencil/count workers and apply shared thread-eligibility checks.
 cdef str _Stencil_Kernel(dict Plan, int Line, bint Parallel):
     H, W = Plan["Margins"]
     Row = f"_Pyceler_Filter_Row_{Line}"

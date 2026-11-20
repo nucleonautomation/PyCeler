@@ -1,4 +1,6 @@
 cdef str _Scalar_Region_Kernel(dict Plan, int Line):
+    if Plan.get('Scalar_Math'):
+        return _Scalar_Math_Kernel(Plan, Line)
     Names = Plan["Names"]
     Slots = Plan["Slots"]
     Floating = Plan.get("Floating", set())
@@ -31,7 +33,7 @@ cdef str _Scalar_Region_Kernel(dict Plan, int Line):
     Lines.extend([f"                Cursor = _Pyceler_Add(Cursor, {Step})", "    except (_Pyceler_Overflow, _Pyceler_Zero_Division):", "        return None",
                   "    return (" + ", ".join(Slots[Name] for Name in Plan["Outputs"]) + ",)"])
     return "\n".join(Lines)
-
+# Generate bounded scalar spans and their state handoff to surrounding application code.
 cdef object _Scalar_Region_Minimum(object Table):
     if not isinstance(Table, dict):
         return None
@@ -53,9 +55,14 @@ cdef str _Scalar_Region_Source(dict Plan, object Node, int Line, str Prefix, obj
     Result = f"{Prefix}Result_{Line}"
     Candidate = f"{Prefix}Scalar_Region_{Line}"
     Arguments = ", ".join([Stop, Begin, *Plan["Inputs"], *([Span + ".step"] if Plan["Step"] is None else [])])
+    Maximum = ", 4096" if Plan.get("Scalar_Math") else ""
+    if Plan.get("Scalar_Math"):
+        Roots = sorted({Root for Root, Name, Module in Plan["Scalar_Math"]["Bindings"]})
+        Arguments += ", {" + ", ".join(repr(Root) + ": " + Root for Root in Roots) + "}"
+        Arguments += "".join(", " + Name for Name in Plan["Output_Guards"])
     Range_Arguments = ", ".join(ast.unparse(Argument) for Argument in Node.iter.args)
     Lines = [f"{Range} = {Prefix}Region_Binding()({Range_Arguments})", f"if {Prefix}Region_Range({Range}, {Plan['Step']}):",
-             f"    for {Span}, {Size} in {Prefix}Region_Spans({Range}, {Plan['Period']!r}):",
+             f"    for {Span}, {Size} in {Prefix}Region_Spans({Range}, {Plan['Period']!r}{Maximum}):",
              f"        {Begin}, {Stop} = {Span}.start, {Span}.stop"]
     if Table is None:
         Lines.append(f"        {Result} = {Candidate}({Arguments})")

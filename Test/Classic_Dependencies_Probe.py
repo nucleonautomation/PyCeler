@@ -2,7 +2,7 @@ import importlib.util
 import sys
 from pathlib import Path
 import numpy as Numpy
-
+# Isolated verification for classic dependencies.
 def _Load(File, Name):
     Spec = importlib.util.spec_from_file_location(Name, File)
     Module = importlib.util.module_from_spec(Spec)

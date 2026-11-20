@@ -10,7 +10,7 @@ cdef str _Median_Pattern = """def Median(Input, Output):
             Output[Row, Column] = Values[len(Values) // 2]
     return Output
 """
-
+# Recognize narrowly specified numeric patterns; unmatched source stays on its ordinary path.
 cdef bint _Numeric_Match(object Pattern, object Actual, dict Names):
     if type(Pattern) is not type(Actual):
         return False

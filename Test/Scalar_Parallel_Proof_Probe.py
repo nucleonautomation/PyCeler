@@ -4,7 +4,7 @@ import json
 import random
 import sys
 from pathlib import Path
-
+# Isolated verification for scalar parallel proof.
 _Minimum = -(2**63)
 _Maximum = 2**63 - 1
 

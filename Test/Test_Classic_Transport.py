@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 import PyCeler
 from Survey_Source import _Filters, _Stencil
-
+# Regression checks for geometry, labels and stream boundaries.
 class Classic_Transport(unittest.TestCase):
     _Directory = Path(__file__).resolve().parent
 
@@ -18,7 +18,7 @@ class Classic_Transport(unittest.TestCase):
         Source = self._Directory / "Classic_Dependencies.py"
         Findings = PyCeler.Analyze(Source, OpenMP=True)
         self.assertTrue(Findings and all(Loop.Change == "Keep original loop" for Loop in Findings))
-        with Temporary_Directory(dir=Root) as Folder, patch.dict(os.environ, PYCELER_BUILD_DIR=str(Path(Folder) / "Build")):
+        with Temporary_Directory(dir=Root) as Folder, patch.dict(os.environ, PYCELER_BUILD_DIR=str(Path(Folder) / "Build")):  # Keep generated sources and binaries outside the maintained fixture tree.
             Binary = PyCeler.Compile(Source, Path(Folder) / "Native")
             Report = json.loads(Binary.with_suffix(".selection.json").read_text(encoding="utf-8"))
             self.assertEqual(Report["Items"], [])

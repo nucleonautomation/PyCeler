@@ -2,7 +2,7 @@ import hashlib
 import json
 import sys
 from pathlib import Path
-
+# Isolated verification for survey native.
 def _Pipeline(Module, Arguments, Parallel, Observe):
     Hooks = [Value for Name, Value in vars(Module).items() if Name.startswith("_Pyceler_") and Name.endswith("Dispatch_Stats") and callable(Value)]
     assert len(Hooks) == 1, "The compiled survey must expose dispatch telemetry"

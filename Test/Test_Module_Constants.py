@@ -10,7 +10,7 @@ from PyCeler import Analyze, Compile, Convert
 from PyCeler.Math_Maps import _Module_Constant_Anchor, _Native_Prefix
 from Test.Workspace import Temporary_Directory
 from Test import Test_Fast_Math
-
+# Regression checks for module literals and floating environment state.
 class Module_Constants(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
     _Fixture = _Root / "Test" / "Module_Constant_Loops.py"
@@ -18,13 +18,13 @@ class Module_Constants(unittest.TestCase):
     def test_Empty_And_Repeated_Module_Loops_Preserve_Floating_Status(self):
         Fixture = self._Root / "Test/Module_Constant_Flags.py"
         self.assertTrue(any(Item.Classification == "Module_Scalar_Region" for Item in Analyze(Fixture)))
-        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:
+        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:  # Keep generated sources and binaries outside the maintained fixture tree.
             Folder = Path(Directory)
             for Parallel in (False, True):
                 with patch.dict(os.environ, PYCELER_BUILD_DIR=str(Folder / "Build"), OMP_NUM_THREADS="2", OMP_DYNAMIC="FALSE"):
                     Converted = Convert(Fixture, Folder / ("Parallel_Source" if Parallel else "Serial_Source"), Select=False, OpenMP=Parallel)
                     Converted.write_text(Converted.read_text(encoding="utf-8") + Test_Fast_Math.Unboxed_Math._Rounding_Probe, encoding="utf-8")
-                    Binary = Compile(Converted, Folder / ("Parallel" if Parallel else "Serial"), Convert=False, OpenMP=Parallel)
+                    Binary = Compile(Converted, Folder / ("Parallel" if Parallel else "Serial"), Convert=False, OpenMP=Parallel)  # Build a real extension; a static finding alone does not prove native execution.
                 Command = [sys.executable, "-I", "-B", str(self._Root / "Test/Module_Constant_Flags_Probe.py"), str(Binary), str(Fixture)]
                 Result = subprocess.run(Command, capture_output=True, text=True, timeout=120)
                 self.assertEqual(Result.returncode, 0, Result.stdout + Result.stderr)

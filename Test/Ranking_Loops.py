@@ -1,5 +1,5 @@
 import numpy as np
-
+# Test support/workload for ranking.
 raise RuntimeError("Ranking must inspect source without executing it")
 
 def Small(Values):

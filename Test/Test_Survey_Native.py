@@ -9,12 +9,12 @@ from unittest.mock import patch
 from PyCeler import Compile
 from Test.Survey_Source import Write_Survey, _Filters
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for survey native.
 class Compiled_Survey(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
     def test_Complete_Survey_Uses_Native_Filters_With_Exact_Behavior(self):
-        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:
+        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:  # Keep generated sources and binaries outside the maintained fixture tree.
             Folder = Path(Directory)
             Source = Write_Survey(Folder / "Survey_Workload.py")
             Original = Source.read_bytes()
@@ -25,7 +25,7 @@ class Compiled_Survey(unittest.TestCase):
             with patch.dict(os.environ, Environment):
                 for Parallel in (False, True):
                     with self.subTest(OpenMP=Parallel):
-                        Binary = Compile(Source, Folder / ("Parallel" if Parallel else "Serial"), Select=False, OpenMP=Parallel)
+                        Binary = Compile(Source, Folder / ("Parallel" if Parallel else "Serial"), Select=False, OpenMP=Parallel)  # Build a real extension; a static finding alone does not prove native execution.
                         Command = [sys.executable, "-I", "-B", str(self._Root / "Test" / "Survey_Native_Probe.py"),
                                    str(Source), str(Binary), str(int(Parallel)), str(self._Root / "Test")]
                         Process = subprocess.run(Command, capture_output=True, text=True, timeout=180)

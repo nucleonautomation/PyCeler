@@ -9,7 +9,7 @@ import time
 import warnings
 from pathlib import Path
 import numpy as N
-
+# Isolated verification for ordered library calls and scalar literal identity.
 def _Load(Name, File):
     Spec = importlib.util.spec_from_file_location(Name, File)
     Module = importlib.util.module_from_spec(Spec)
@@ -243,11 +243,12 @@ def _Run(Binary, Source_File, Recipe_File):
         if isinstance(Output, N.ndarray):
             assert N.array_equal(Output, Original)
             assert Actual[:2] == Expected[:2] and Actual[-1] == Expected[-1]
+            assert Statistics()["Execution"]["Native_Entry"] is False, Statistics()
         else:
             assert Actual == Expected
-        assert Statistics()["Execution"]["Native_Entry"] is False, Statistics()
+            assert Statistics()["Execution"]["Native_Entry"] is True, Statistics()
     Statistics(False)
-    return dict(Functions=len(Recipes), Native_Cases=Count, Aliasing_Cases=3, Dynamic_Bindings=3, Signal_Cases=1, Literal_Identity_Cases=Identity_Cases, Fallbacks=2, Mutation_Prefix=Mutation_Prefix, Cancellation_Prefix=Cancellation_Prefix, Mutation_Observer=Mutation_Audit, Signal_Observer=Signal_Audit)
+    return dict(Functions=len(Recipes), Native_Cases=Count, List_Native_Cases=1, Aliasing_Cases=3, Dynamic_Bindings=3, Signal_Cases=1, Literal_Identity_Cases=Identity_Cases, Fallbacks=1, Mutation_Prefix=Mutation_Prefix, Cancellation_Prefix=Cancellation_Prefix, Mutation_Observer=Mutation_Audit, Signal_Observer=Signal_Audit)
 
 if __name__ == "__main__":
     print(json.dumps(_Run(Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]))))

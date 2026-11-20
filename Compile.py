@@ -15,7 +15,7 @@ import sysconfig
 import tempfile
 import zipfile
 from pathlib import Path
-
+# Build and package native PyCeler modules with reproducible source identity and platform-specific ABI settings.
 def _Backend(Root):
     Spec = importlib.util.spec_from_file_location("Native_Build", Root / "PyCeler" / "Native_Build.py")
     Module = importlib.util.module_from_spec(Spec)
@@ -34,7 +34,7 @@ def _Embedded_Resources(Package):
     return ("cdef dict _Resources = " + repr(Resources) + "\n\ndef _Resource(Name):\n"
             "    if Name not in _Resources:\n        raise ValueError(f'Unknown PyCeler runtime resource: {Name}')\n"
             "    return _Resources[Name]\n")
-
+# Copy maintained sources and embed templates; do not write generated binaries beside editable sources.
 def _Stage_Package(Root, Stage):
     Package = Root / "PyCeler"
     Sources = Stage / "Sources" / "PyCeler"
@@ -51,7 +51,7 @@ def _Stage_Package(Root, Stage):
     (Stage / "Sources" / Resource).write_text(_Embedded_Resources(Package), encoding="utf-8")
     Paths.append(Resource)
     return Paths
-
+# The installed initializer is minimal and carries the exact build/source identity.
 def _Package_Init(Package, Build_Id=None, Source_Fingerprint=None):
     Tree = ast.parse((Package / "__init__.py").read_text(encoding="utf-8"))
     Versions = [Node.value.value for Node in Tree.body if isinstance(Node, ast.Assign) and

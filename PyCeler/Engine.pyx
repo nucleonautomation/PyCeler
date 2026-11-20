@@ -8,8 +8,16 @@ from .Loop_Detector import Loop_Finding
 from .Native_Build import _Build, _Member_Alias, _Publish, _Temporary_Workspace, _Workspace
 from .Runtime_Resources import _Resource
 from .Common_Analysis import _Attach_Common_Plans, _Map_Validate
+from .Indexed_Filters import _Filter_Plans, _Filter_Source, _Filter_Kernel
+from .Array_Regions import _Array_Region_Plans
+from .Array_Region_Kernel import _Array_Region_Kernel
 from .Math_Maps import _Math_Map_Plans, _Math_Map_Kernel, _Math_Map_Constant_Source, _Module_Constant_Anchor, _Module_Constant_Kernel, _Native_Prefix
-
+from .Scalar_Math import _Scalar_Math_Plan, _Scalar_Math_Kernel, _Scalar_Math_Module_Kernel
+from .List_Grids import _List_Grid_Plans
+from .List_Grid_Kernel import _List_Grid_Kernel, _List_Grid_Source
+from .Numeric_Regions import _Numeric_Region_Plans
+from .Numeric_Region_Kernel import _Numeric_Region_Kernel, _Numeric_Region_Source
+# Coordinate static planning and expose Analyze; included generators implement conversion and compilation.
 cdef bint _Name(object Node, str Name):
     return isinstance(Node, ast.Name) and Node.id == Name
 
@@ -192,15 +200,52 @@ cdef tuple _Plan(object File, bint Parallel, bint Elide_Temporaries=False):
                 Findings[Position] = replace(Finding, Classification='Guarded_Ordered_Math', Change=Finding_Change,
                     Reason=Plan['Numerical_Contract'], Transformations=('Compiled ordered math iteration',),
                     Constraints=('Plain numeric arrays', 'Original library functions and live bindings', 'Serial execution preserves exceptions and mutation order'))
+    Grid_Edits = _List_Grid_Plans(Tree, Edits)
+    Edits.update(Grid_Edits)
+    for Edit in Grid_Edits.values():
+        Plan = Edit[3]
+        Covered = {Loop.lineno for Loop in Plan['Loops']}
+        for Position, Finding in enumerate(Findings):
+            if Finding.Line in Covered:
+                Findings[Position] = replace(Finding, Classification='Guarded_List_Grid', Change='Buffered native rectangular list-grid arithmetic',
+                    Reason='Exact float list grids are copied to native buffers; disjoint output rows retain their original identity and the final cell preserves Python local/global state.',
+                    Transformations=Plan['Transformations'], Constraints=('Exact rectangular built-in lists', 'Disjoint input/output rows and unique output rows', 'Ordered float64 arithmetic and guarded Python continuation'))
+    from .Common_Scopes import _Function_Scopes
+    from .Common_Calls import _Call_Facts
+    Scopes = _Function_Scopes(Tree, Text)
+    Calls = _Call_Facts(Tree)
+    Array_Edits = _Array_Region_Plans(Tree, Edits, Scopes, Calls)
+    Edits.update(Array_Edits)
+    for Edit in Array_Edits.values():
+        Plan = Edit[3]
+        Covered = {Loop.lineno for Loop in Plan['Loops']}
+        for Position, Finding in enumerate(Findings):
+            if Finding.Line in Covered:
+                Findings[Position] = replace(Finding, Classification='Guarded_Array_Region', Change='Buffered ndarray arithmetic with proven-independent OpenMP rows' if Plan['Parallel'] and Parallel else 'Buffered ordered ndarray arithmetic', Reason='Typed ndarray regions preserve operation order, scalar dtype and final locals; only disjoint independent outer slices are parallel candidates.', Transformations=Plan['Transformations'], Constraints=('Validated ndarray storage and primitive dtypes', 'Exact ordered arithmetic and original continuation', 'Dependency proof before OpenMP'))
+    Numeric_Edits = _Numeric_Region_Plans(Tree, Edits, Scopes, Calls)
+    Edits.update(Numeric_Edits)
+    for Edit in Numeric_Edits.values():
+        Plan = Edit[3]
+        Covered = {Loop.lineno for Loop in Plan['Loops']}
+        for Position, Finding in enumerate(Findings):
+            if Finding.Line in Covered:
+                Findings[Position] = replace(Finding, Classification='Guarded_Numeric_Region', Change='Buffered native numeric loops with proven-independent OpenMP work' if Plan['Parallel'] and Parallel else 'Buffered native numeric loops with ordered control flow',
+                    Reason='Exact numeric lists use guarded buffers and shared storage dependency proofs; independent outer work can run in parallel while reductions retain their original order. Original final iterations preserve local/global state.' + (' ' + Finding.Reason if Finding.Classification == 'Loop_Carried_Dependency' else ''),
+                    Transformations=Plan['Transformations'], Constraints=('Exact numeric built-in lists and scalars', 'Disjoint list storage across names', 'Bounded control flow and original exception continuation'))
+    Filters = _Filter_Plans(Scopes, Edits)
+    Edits.update(Filters)
+    for Position, Finding in enumerate(Findings):
+        if Finding.Line in Filters:
+            Findings[Position] = replace(Finding, Classification='Guarded_Indexed_Filter', Change='Ordered native indexed distance filter', Reason='Read fixed float64 columns at candidate row indices and append matching indices in input order.', Transformations=Filters[Finding.Line][3]['Transformations'], Constraints=('Exact lists and native float64 table', 'Checked row bounds and finite arithmetic'))
     _Apply_Diagnostics(Tree, Findings, Edits)
     Findings = _Rank_Findings(Findings, Tree, Edits)
-    Findings = _Attach_Common_Plans(Tree, Findings, Edits)
+    Findings = _Attach_Common_Plans(Tree, Findings, Edits, Calls)
     return Text, Findings, Edits, Tree
 
 cdef tuple _Inputs(object Source_Path):
     from .Source_Inputs import _Source_Inputs
     return _Source_Inputs(Source_Path)
-
+# Static analysis reads source without importing or running the target program.
 def Analyze(Source_Path, *, OpenMP=False, Elide_Temporaries=False):
     if type(Elide_Temporaries) is not bool:
         raise ValueError("Elide_Temporaries must be True or False")

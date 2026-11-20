@@ -3,16 +3,40 @@ import os
 import subprocess
 import sys
 import types
+import random
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 from PyCeler.Selection_Inputs import _Copy, _Storage_Bytes, _Probe_Resource
-from PyCeler.Selection_Worker import _Observe, _Check, _Time, _Probe_Timeout
+from PyCeler.Selection_Worker import _Observe, _Check, _Time, _Probe_Timeout, _Range_Span
 from PyCeler.Selection_Policy import _Selection_Table
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for validation, timing budgets and conservative dispatch.
 class Selection_Safety(unittest.TestCase):
+    def test_Expected_Exceptions_Validate_Without_Vetoing_Timings(self):
+        def Successful(Size, Holdout=False):
+            return dict(Key='int', Size=Size, Holdout=Holdout, Reference_Outcome='return', Validation={'Python': 'valid', 'Serial': 'valid'}, Timings={'Python': {'Samples_Ns': [100, 100, 100]}, 'Serial': {'Samples_Ns': [10, 10, 10]}})
+        Failure = dict(Key='int', Size=128, Reference_Outcome='raise', Validation={'Python': 'valid', 'Serial': 'unsupported: runtime guard selected Python'}, Timings={})
+        Cases = [Successful(128), Successful(512, True), Failure]
+        self.assertEqual(_Selection_Table(Cases, 1.1, True)['int'], [(513, 0), (128, 1)])
+        Failure['Validation']['Serial'] = 'invalid: exception differs'
+        self.assertTrue(all(Mode == 0 for Bound, Mode in _Selection_Table(Cases, 1.1, True)['int']))
+        Failure['Validation']['Serial'] = 'unsupported: runtime guard selected Python'
+        self.assertEqual(_Selection_Table([Failure], 1.1, True)['int'], [])
+
     _Root = Path(__file__).resolve().parents[1]
+
+    def test_Range_Sizing_Preserves_Random_State_And_Helper_Bindings(self):
+        Item = dict(Range='range(Scale(Count) + int(Rng.random() * 100.0))', Math_Imports=('import random as Rng',), Helper_Sources=(('Scale', 'def Scale(Value):\n    return Value * 2'),))
+        Before = random.getstate()
+        Copy = random.Random()
+        Copy.setstate(Before)
+        Expected = 6 + int(Copy.random() * 100.0)
+        self.assertEqual(len(_Range_Span(Item, dict(Count=3))), Expected)
+        self.assertEqual(random.getstate(), Before)
+        with self.assertRaises(ValueError):
+            _Range_Span(Item, dict(Count=3), 'range(0, int(Rng.random() * 100.0), 0)')
+        self.assertEqual(random.getstate(), Before)
 
     def test_Validation_Records_Nested_Return_And_Input_Aliases(self):
         Value = int("1234567")
@@ -114,7 +138,7 @@ class Selection_Safety(unittest.TestCase):
 
     def test_Live_OpenMP_Settings_And_Opt_In_Dispatch_Observation(self):
         from PyCeler import Compile
-        with Temporary_Directory(dir=self._Root / "Test_Run") as Folder:
+        with Temporary_Directory(dir=self._Root / "Test_Run") as Folder:  # Keep generated sources and binaries outside the maintained fixture tree.
             Work = Path(Folder)
             Runtime = (self._Root / "PyCeler" / "Dispatch_Runtime.pxi.in").read_text(encoding="utf-8")
             Runtime += (self._Root / "PyCeler" / "Selection_Runtime.pxi.in").read_text(encoding="utf-8")
@@ -125,7 +149,7 @@ class Selection_Safety(unittest.TestCase):
                               "\ndef Choose(Count):\n    return _Pyceler_Choose((Count,), True, {'int': [(16, 2), (0, 0)]})\n" +
                               "\ndef Set_Threads(Count):\n    _Set(Count)\n", encoding="utf-8")
             with patch.dict(os.environ, PYCELER_BUILD_DIR=str(Work / "Build")):
-                Binary = Compile(Source, Work / "Native", Convert=False, OpenMP=True)
+                Binary = Compile(Source, Work / "Native", Convert=False, OpenMP=True)  # Build a real extension; a static finding alone does not prove native execution.
             Program = "\n".join(("import sys", "sys.path.insert(0, sys.argv[1])", "import Dispatch_Check as M",
                                  "assert M.Choose(100) == 2", "assert M._Pyceler_Dispatch_Stats() == {}",
                                  "M._Pyceler_Dispatch_Stats(True)", "assert M.Choose(4) == 0",

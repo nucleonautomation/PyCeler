@@ -10,7 +10,7 @@ def Mixed(Begin, End, Stride, Initial, Events, Callback):
         Events.append(("else", Total, Index, Stride))
     Events.append(("done", Total, Index, Stride))
     return Total, Index, Stride
-
+# Test support/workload for dynamic range steps and ordered scalar arithmetic.
 def Control(Begin, End, Stride, Events, Callback):
     Total = 0
     Index = -23

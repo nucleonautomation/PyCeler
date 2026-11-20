@@ -2,7 +2,7 @@ import ast
 import copy
 import json
 import sys
-
+# Describe math/cmath/NumPy call contracts and binding resolution; registry coverage is not native coverage.
 _Registry_Version = 3
 _Modules = ("math", "cmath", "numpy", "builtins")
 _Guarded_Unboxed = frozenset("sqrt cbrt sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh exp exp2 expm1 log log10 log1p fabs isfinite isinf isnan erf erfc copysign fmod".split())

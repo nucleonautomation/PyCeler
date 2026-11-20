@@ -1,5 +1,5 @@
 import math
-
+# Test support/workload for hard optimization.
 def Math_Chain(Source, Output):
     for Index in range(len(Source)):
         Wave = math.sin(Source[Index])

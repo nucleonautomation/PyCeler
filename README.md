@@ -1,8 +1,10 @@
 # PyCeler
 
-This checkout contains **PyCeler 0.4.0**. Build from source to use this checkout, or install a published release with pip.
+This checkout contains **PyCeler 0.5.0**. Build from source to use this checkout, or install a published release with pip.
 
-Version 0.4.0 can extract numeric inner loops from surrounding Python control flow and compile guarded rectangular math and NumPy loops with multiple assignments or branches. Eligible loops get serial Cython and OpenMP candidates. PyCeler checks their behavior against Python and measures the whole call before choosing an implementation. See [the changelog](Log.md) for coverage and measured results.
+Version 0.5.0 expands guarded native execution for numeric lists and arrays, iterator loops, pure helper calls, and indexed distance filters. Conversion produces one readable Cython file and preserves Python scope and fallback behavior across supported transformations. Eligible loops get serial Cython and OpenMP candidates, with behavior checks and whole-call measurements guiding selection. See [the changelog](Log.md) for coverage and measured results.
+
+Browse the [Example catalogue](Example/README.md) for ordinary Python inputs, including preserved full benchmarks and broad math fixtures. Bulk example folders contain only `.py` files; generate readable Cython on demand under ignored `Test_Run/Examples`. Start with the small `Example/Quick_Start.py` and its retained `.pyx`; no PyCeler-specific syntax is required.
 
 PyCeler looks for numeric loops in Python code and tries compiling them with Cython. A loop that clears an array, for example, can split the work across threads because each write is independent. An array prefix sum reads a preceding write and must keep that order. PyCeler checks which transformations apply, compares their results with Python, and measures whether they save time on the inputs it tried.
 
@@ -44,6 +46,15 @@ PyCeler does not promise to accelerate every Python loop. Arbitrary objects, unk
 | --- | --- |
 | Independent array fills and maps | Typed native loops, proven bounds-check removal, eligible `prange` with `nogil` |
 | Multiple statements and augmented array assignments | Initialized local arithmetic, per-index `+=`, `-=`, `*=`, guarded independent writes |
+| Extracted ndarray regions | Arbitrary statically known rank, tuple indexing and row unpacking, float32/float64 arithmetic, primitive output casts, ordered sums and independent outer `prange` workers |
+| Rectangular standard random generation | Ordered `random.random` staging, exact RNG state, guarded native scalar math and independent parallel output writes |
+| Nested numeric Python lists | Arbitrary statically known rank, guarded float or bounded integer/boolean cells, stepped ranges, carries and proven-independent OpenMP work with ordered publication |
+| Numeric `enumerate` and `zip` loops | Guarded scalar-target indexing over named lists/arrays, optional enumerate starts, strict mismatch fallback, original iterator construction and final target identities |
+| Indexed distance filters | Guarded serial squared-distance comparisons over fixed float64 columns, with candidate order, duplicates and threshold ties preserved |
+| Array extrema and clamped indices | Ordered multi-argument min/max with selected-operand dtype, clamped native indexing, checked Python-integer floor division and sequential reduction loops |
+| Stable integer index offsets | Shared dependency proofs for parameterized offsets in range and iterator loops, with checked wrapped-address bounds |
+| Shape-only inputs | Guarded lengths and dimensions without converting or copying unused element data, including object-filled templates |
+| Pure numeric helpers | Same-module fixed-signature calls with ordered local assignments, nested helper calls, reused values and preserved unused computations |
 | Structural array loops | Common-expression reuse, invariant motion, adjacent-loop fusion, row-major interchange |
 | Stencils and clipped medians | Guarded borders, tiled serial filters, row-local scratch, eligible parallel rows |
 | Counts, projections and row selection | Specialized guarded kernels and eligible OpenMP reductions/rows |
@@ -52,9 +63,15 @@ PyCeler does not promise to accelerate every Python loop. Arbitrary objects, unk
 | Numeric spans with periodic callbacks | Function and module extraction, positive/negative literal strides, ordered callback boundaries |
 | Module numeric loops | Bounded serial spans, eligible exact OpenMP sums, observable-global continuation and original surrounding Python control flow |
 | Broad math, complex math and NumPy calls | Compiled ordered loops retaining the original library operations, Python objects, warnings and exceptions |
-| Supported real-math array expressions | Guarded unboxed float64 arithmetic, eligible `prange`, runtime-gated `erf`/`erfc`, and two-argument `copysign`/nonzero-result `fmod`; current release runtime qualification remains deferred |
+| Supported real-math array expressions | Guarded unboxed float64 arithmetic, eligible `prange`, runtime-gated `erf`/`erfc`, and two-argument `copysign`/nonzero-result `fmod`; qualification is recorded per build in the test evidence |
 | Byte spans and fragmented reads | Serial specializations preserving stream order and exceptions |
 | Existing typed Cython | Conservative contiguous-fill bounds/wraparound elimination |
+
+Native eligibility is separate from valid Python input. Rank handling is generated for the detected indexing structure, while runtime checks validate actual shapes, bounds, dtypes and overlapping storage. The extracted ndarray path currently lowers float32/float64 reads; complex, half and integer arithmetic need another supported specialization or Python fallback. Exact-integer and allocation safeguards remain. Floating reductions keep their original order rather than using a reassociated parallel sum. See [the test guide](Test/README.md) for executable coverage and qualification limits.
+
+Supported maps can now carry multiple storage implementations: numeric lists, composed float32/float64 ndarray regions and the existing typed ndarray map. Backend routing uses runtime storage checks and separate measured list/dtype bands. Recognizing a loop with an earlier planner no longer prevents these compatible implementations from being generated. This does not remove arithmetic, alias or binding checks, and small calls can still favor Python after whole-call measurement.
+
+Direct iterator candidates use a complete transaction and retain the original iterator for fallback. Current direct lowering covers scalar targets over named rank-one sources; numeric work inside tuple-bound row loops can be extracted separately. Helper defaults, keyword-only signatures, general statement bodies and borrowed return identities remain outside the current pure-helper contract. Shape-only support does not imply arithmetic support for the template's element dtype.
 
 Enable bounded thread/tile tuning and cache reuse when compiling:
 
@@ -70,6 +87,8 @@ Selection validates candidates, measures complete calls repeatedly and retains t
 Synthetic selection, including `Tuning=True` alone, extrapolates the largest validated band to larger sizes subject to the same correctness guards. Reports label this as extrapolation, not a measured performance gain. Representative `Workloads` use bounded dispatch: calls above the largest supplied size use Python. Supply production sizes and holdouts, then inspect `Coverage` and `Dispatch`. The largest default synthetic probes are 32,768 scalar iterations, 65,536 array elements and 4,096 stencil/median pixels.
 
 Validation checks nested object identities, shared array backing storage, mutations, exception arguments and warnings. Holdouts and production cases run before synthetic cases. Each isolated worker has a hard time limit covering imports, factories, isolation, validation and timing, plus a five-second termination allowance; compilation is separate. Copied backing storage is limited to 64 MiB per timing batch, including a small view's full owner allocation. Arbitrary workload factories execute in that worker and can allocate their own storage. Inconclusive cases stay on Python. Live OpenMP settings are checked before measured dispatch. Validation reports record each actual native entry and worker team separately from the requested candidate. For application diagnosis, generated modules expose a private `_Pyceler_Dispatch_Stats(True, Reset=True)` hook; call it before an invocation and inspect `Selection` and `Execution` afterwards, then disable it with `_Pyceler_Dispatch_Stats(False)`. Generated prefixes can change on name collisions. Reset before each observed call; unsupported functions have no native-entry event. Instrumentation is off during normal timing and adds no per-iteration checks when disabled.
+
+`Execution` describes the most recent execution event. For a call that completes native spans and then falls back, inspect `Totals.Native_Entries`, `Totals.Parallel_Entries` and `Totals.Maximum_Team` as well. These accumulate recorded native events until `Reset=True`; they do not establish a whole-call speedup. A final `python_fallback` event remains visible even when earlier native work succeeded.
 
 ## Scalar loops and progress reporting
 
@@ -87,7 +106,9 @@ A whole function that initializes an integer total, adds independent integer ter
 
 Findings expose immutable `Diagnostics` records with codes, source locations, messages and suggestions. Python findings also have a versioned `Plan` describing control flow, inputs, live values, dependencies, effects, math-call contracts, guards and eligibility. Static plans describe candidates; they do not prove native execution or measured speedup. Selection reports distinguish no candidates, candidate build failures, validation failures and measured selection. Static overflow warnings describe possible ranges rather than claiming that a fallback was observed. Comprehensions, generators and asynchronous loops receive explicit findings and retain Python behavior. Conversion writes a report even when there are no loops. A completed native compilation can still contain unchanged loops.
 
-For converted `.py` inputs, PyCeler compiles the user-facing module and function code with CPython and exposes guarded native helpers. Unsupported code and failed guards therefore run Python code rather than an unvalidated Cython translation. Original exceptions and module-global updates retain Python behavior. Native `.pyx`/`.pxi` inputs and `Convert=False` use Cython semantics and have a separate compilation contract. Generated modules expose private helper names; reflective inspection of those names, native frames and tracing is outside the preservation contract.
+Converted `.py` inputs produce one readable `.pyx` containing the application definitions and native Cython kernels. Generated application and fallback bodies are emitted as code, not escaped source strings or runtime `exec`/`compile` calls. There is no companion Python file. Python-style definitions in that file are compiled by Cython; they are Cython function objects rather than CPython `FunctionType` objects. Cython function-code replacement, tracing and unsupported Python syntax therefore follow Cython behavior. Native fast paths keep explicit guards and readable fallback code for incompatible runtime inputs. Generated private helper names remain implementation details.
+
+Edit the generated `.pyx` and rebuild with `Compile(path, output, Convert=False)` to compile those edits directly. Edit the original `.py` and run conversion again when changing application logic that should be replanned into optimized kernels. String literals belonging to the application remain ordinary data. The format change does not establish native coverage for every Python operation.
 
 Run the generated extension by importing it from its output directory. Running the original `.py` file continues to execute that source. Module-level statements execute on import; a function inside an `if __name__ == "__main__":` entry point must be called explicitly from a separate runner.
 
@@ -145,11 +166,11 @@ python -B Test/Run.py
 
 To verify the optimizer while deferring wheel creation, run `python -B Test/Run.py --no-wheels`. The report explicitly lists the two excluded packaging tests.
 
-For release packaging after verification, use the following commands. The example filename is for the Windows x64 build of 0.4.0. Running the verification command is separate from building the wheel.
+For release packaging after verification, use the following commands. The example filename is for the Windows x64 build of 0.5.0. Running the verification command is separate from building the wheel.
 
 ```sh
 python -B Compile.py wheel --library Build/Lib
-python -B Test/Verify_Wheel.py Build/Wheels/pyceler-0.4.0-cp311-abi3-win_amd64.whl
+python -B Test/Verify_Wheel.py Build/Wheels/pyceler-0.5.0-cp311-abi3-win_amd64.whl
 ```
 
 Use the wheel filename produced on your native host; Linux wheels use `linux_x86_64` or `linux_aarch64` tags. Wheel packaging is deterministic for identical built files. It does not claim manylinux qualification or identical native binaries across compiler runs. The maintained CI matrix builds and tests native Windows x64/Linux AMD64/Linux ARM64 on CPython 3.11 and 3.14, then verifies the same artifact on the other interpreter. Local verification does not imply those remote jobs have run. These source changes do not update an already published wheel.
@@ -165,3 +186,9 @@ The example contains both the array fill and the running sum. [Example source](h
 ## Project
 
 [GitHub repository](https://github.com/nucleonautomation/PyCeler) · [Changelog](https://github.com/nucleonautomation/PyCeler/blob/main/Log.md) · [Test guide](https://github.com/nucleonautomation/PyCeler/blob/main/Test/README.md) · [MIT license](https://github.com/nucleonautomation/PyCeler/blob/main/LICENSE.md)
+
+## Reading the implementation
+
+Start with `PyCeler/Engine.pyx` and `Generator.pxi` for the public analysis/conversion flow. `Common_Analysis.py`, `Common_Scopes.py` and `Common_Calls.py` supply shared facts; the scalar, numeric and array planners turn those facts into guarded plans. Their emitters and `.pxi.in` runtime templates implement native work and continuation. `Direct_Source.py` assembles readable output, `Selection_Worker.py` validates before timing, and `Native_Build.py` stages native compilation. Comments explain why guards and ordering constraints are required.
+
+In `Test/`, workload fixtures describe source patterns, probes compare Python/native behavior and inspect actual worker counters, and `Test_*.py` files orchestrate isolated checks. `Example/` presents the corresponding inputs/output pairs for readers without mixing them with test drivers or temporary binaries.

@@ -13,7 +13,7 @@ cdef object _Coordinate(object Node, str Index, int Axis):
     if _Name(Cell.slice.elts[0], Index) and _Integer(Cell.slice.elts[1], Axis):
         return Node.targets[0].id, Cell.value.id, Expr.right.id
     return None
-
+# Recognize guarded projection work and retain indirect-index and geometric validity checks.
 cdef object _Projection_Gate(object Node, str Index):
     if not isinstance(Node, ast.If) or Node.orelse or len(Node.body) != 1 or not isinstance(Node.body[0], ast.Continue):
         return None

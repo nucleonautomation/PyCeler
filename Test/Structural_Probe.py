@@ -4,7 +4,7 @@ import warnings
 from pathlib import Path
 import numpy as np
 import Structural_Loops as Native
-
+# Isolated verification for dependency-safe structural loop rewrites.
 def _Reference():
     Spec = importlib.util.spec_from_file_location("Structural_Reference", Path(Reference_Path))
     Module = importlib.util.module_from_spec(Spec)

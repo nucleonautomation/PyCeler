@@ -2,7 +2,9 @@ import ast
 import hashlib
 import json
 from dataclasses import asdict, dataclass, replace
-
+from .Numeric_Contracts import _Builtin_Call, _Builtin_Numeric
+from .Common_Values import _Stable_Values, _Preceding_Value
+# Represent control flow, effects, storage access and dependencies shared by optimizer backends.
 _Plan_Version = 1
 _Loop_Types = (ast.For, ast.AsyncFor, ast.While, ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
 _Scopes = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
@@ -126,6 +128,11 @@ def _Binding_Targets(Node):
         return _Binding_Targets(Node.value)
     return set()
 
+def _Contained_Scalar_Edits(Node, Edits):
+    if not isinstance(Node, ast.For):
+        return {}
+    return {Line: (Edit[1].lineno, Edit[1].end_lineno) for Line, Edit in Edits.items() if Edit[3] is not None and Edit[3].get('Kind') == 'scalar_region' and Node.lineno < Edit[1].lineno and Edit[1].end_lineno <= Node.end_lineno}
+
 def _Definite_Bindings(Statements, Entering=()):
     Bound = set(Entering)
     for Statement in Statements:
@@ -178,6 +185,78 @@ def _Reads_Before_Definition(Statements, Defined=None):
         elif isinstance(Statement, ast.Delete):
             Defined.difference_update(New)
     return Reads, Defined
+
+def _Region_Loop_Partition(Node):
+    return isinstance(Node, (ast.For, ast.While)) and sum(isinstance(Statement, (ast.For, ast.While)) for Statement in Node.body) > 1
+
+def _Affine_Outer(Node, Index, Values=None):
+    if isinstance(Node, ast.Name) and Node.id == Index:
+        return 1, 0
+    Value = _Preceding_Value(Node, Values or {})
+    if Value is not None:
+        return _Affine_Outer(Value, Index, Values)
+    if isinstance(Node, ast.Constant) and type(Node.value) is int:
+        return 0, Node.value
+    if isinstance(Node, ast.UnaryOp) and isinstance(Node.op, (ast.UAdd, ast.USub)):
+        Value = _Affine_Outer(Node.operand, Index, Values)
+        return None if Value is None else tuple(-Part for Part in Value) if isinstance(Node.op, ast.USub) else Value
+    if not isinstance(Node, ast.BinOp) or not isinstance(Node.op, (ast.Add, ast.Sub, ast.Mult)):
+        return None
+    Left, Right = _Affine_Outer(Node.left, Index, Values), _Affine_Outer(Node.right, Index, Values)
+    if Left is None or Right is None:
+        return None
+    if isinstance(Node.op, ast.Mult):
+        return (Left[0] * Right[1], Left[1] * Right[1]) if Right[0] == 0 else (Right[0] * Left[1], Right[1] * Left[1]) if Left[0] == 0 else None
+    Sign = -1 if isinstance(Node.op, ast.Sub) else 1
+    return Left[0] + Sign * Right[0], Left[1] + Sign * Right[1]
+
+def _Independent_Outer_Storage(Plan):
+    from .Affine_Parameters import _Shifted_Forms
+    if Plan['Carry'] or any(isinstance(Node, ast.While) for Node in Plan['Loops']):
+        return False
+    Tree = ast.Module(body=Plan['Statements'], type_ignores=[])
+    Parts = list(ast.walk(Tree))
+    if any(isinstance(Node, ast.Name) and Node.id == Plan['Index'] and isinstance(Node.ctx, ast.Store) for Node in Parts):
+        return False
+    Inner = {Node.value for Node in Parts if isinstance(Node, ast.Subscript)}
+    Accesses = {Name: [] for Name in Plan['Writes']}
+    for Node in Parts:
+        if not isinstance(Node, ast.Subscript) or Node in Inner:
+            continue
+        Coordinates = []
+        while isinstance(Node, ast.Subscript):
+            Coordinates.insert(0, Node.slice)
+            Node = Node.value
+        if isinstance(Node, ast.Name) and Node.id in Accesses:
+            Accesses[Node.id].append(Coordinates)
+    Proofs, Shifts = {}, {}
+    Stable = _Stable_Values(Plan['Statements'])
+    for Name, Coordinates in Accesses.items():
+        Independent = False
+        for Axis in range(Plan['Buffers'][Name][1]):
+            Nodes = [Values[Axis] for Values in Coordinates if len(Values) > Axis]
+            Forms = [_Affine_Outer(Node, Plan['Index'], Stable) for Node in Nodes]
+            Shift = ()
+            if any(Value is None for Value in Forms):
+                Parameterized = _Shifted_Forms(Nodes, Plan, Stable)
+                if Parameterized is not None:
+                    Forms, Shift = Parameterized
+            if len(Forms) != len(Coordinates) or not Forms or any(Value is None or Value[0] == 0 for Value in Forms):
+                continue
+            if len({Value[0] for Value in Forms}) != 1:
+                continue
+            Scale = abs(Forms[0][0])
+            Offsets = {Value[1] for Value in Forms}
+            if len({Offset % Scale for Offset in Offsets}) == len(Offsets):
+                Proofs[Name] = Axis, Forms[0][0], tuple(sorted(Offsets))
+                Shifts[Name] = Shift
+                Independent = True
+                break
+        if not Independent:
+            return False
+    Plan['Parallel_Axes'] = Proofs
+    Plan['Parallel_Shifts'] = Shifts
+    return bool(Accesses)
 
 def _Shape(Node):
     Names = {}
@@ -303,13 +382,21 @@ def _Dependencies(Node, Reads, Writes, Carried):
                 Blockers.append("Potential cross-iteration dependency between " + ast.unparse(Read) + " and " + ast.unparse(Write) + ".")
     return tuple(dict.fromkeys(Blockers))
 
-def _Calls(Node, Math_Calls):
+def _Calls(Node, Math_Calls, Helpers=None):
     Result = []
     for Part in _Parts(Node):
         if not isinstance(Part, ast.Call):
             continue
         Name = ast.unparse(Part.func)
+        if Name in (Helpers or ()):
+            Contract = dict(Strategy='Guarded_Pure_Helper_IR', Evaluation='arguments_once_in_python_order', Binding='exact_function_code_globals_defaults_closure', Publication='recheck_before_mutation')
+            Result.append(_Call_Plan(Name, _Location(Part), 'conditional_numeric', 'runtime_guard_required', 'guarded_helper', 'Shared helper IR preserves argument order and numeric operations under verified function and global bindings.', json.dumps(Contract, sort_keys=True, separators=(',', ':'))))
+            continue
         Record = Math_Calls.get((Part.lineno, Part.col_offset + 1))
+        Builtin = _Builtin_Call(Part)
+        if Record is None and Builtin:
+            Result.append(_Call_Plan(Name, _Location(Part), 'conditional_numeric', 'runtime_guard_required', 'guard_required', 'Exact builtin binding and numeric operands are validated by the shared lowering contract.', json.dumps(_Builtin_Numeric[Builtin], sort_keys=True, separators=(',', ':'))))
+            continue
         if Record is None:
             Conditional = isinstance(Part.func, ast.Name) and Part.func.id in ("range", "len", "enumerate", "zip")
             Result.append(_Call_Plan(Name, _Location(Part), "conditional_builtin" if Conditional else "unknown", "runtime_guard_required",
@@ -377,7 +464,7 @@ def _Inventory(Tree):
     Visit(Tree, (), None)
     return Entries, Parents
 
-def _Plan_For(Node, Function, Parents, Finding=None, Math_Calls=None):
+def _Plan_For(Node, Function, Parents, Finding=None, Math_Calls=None, Helpers=None):
     Defines, Uses = _Usage(Node)
     Targets = _Targets(Node.target) if isinstance(Node, (ast.For, ast.AsyncFor)) else set()
     if isinstance(Node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
@@ -392,7 +479,7 @@ def _Plan_For(Node, Function, Parents, Finding=None, Math_Calls=None):
              and (getattr(Part, "lineno", 0), getattr(Part, "col_offset", 0)) >= End}
     Live_Out = tuple(sorted(Defines & Later))
     Reads, Writes = _Indexed(Node)
-    Calls = _Calls(Node, Math_Calls or {})
+    Calls = _Calls(Node, Math_Calls or {}, Helpers)
     Effects, Exits = _Effects(Node)
     Blockers = list(_Dependencies(Node, Reads, Writes, Carried))
     if "suspension" in Effects:
@@ -429,21 +516,26 @@ def _Plan_For(Node, Function, Parents, Finding=None, Math_Calls=None):
                           Serial, Parallel, tuple(dict.fromkeys(Guards)), tuple(dict.fromkeys(Blockers)), Adapter,
                           len(Node.generators) if isinstance(Node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)) else 1)
 
-def _Attach_Common_Plans(Tree, Findings, Edits=None):
+def _Attach_Common_Plans(Tree, Findings, Edits=None, Calls=None):
     from .Math_Registry import _Math_Calls
-    Math_Calls = {(Item["Line"], Item["Column"] + 1): Item for Item in _Math_Calls(Tree)}
+    Math_Calls = {(Item["Line"], Item["Column"] + 1): Item for Item in (_Math_Calls(Tree) if Calls is None else Calls['Math'].values())}
     Entries, Parents = _Inventory(Tree)
     By_Location = {}
     for Node, Scope, Function in Entries:
         By_Location.setdefault((Scope, Node.lineno, Node.end_lineno), []).append((Node, Function))
     Result = []
+    Helper_Regions = []
+    for Names, Loop, Function, Plan in (Edits or {}).values():
+        if Plan is not None and Plan.get('Helper_Roots'):
+            Helper_Regions.append((Loop.lineno, Loop.end_lineno, set(Plan['Helper_Roots']) - set(Plan['Helper_Globals'])))
     for Finding in Findings:
         Matches = By_Location.get((Finding.Function, Finding.Line, Finding.End_Line), [])
         if not Matches:
             Result.append(Finding)
             continue
         Node, Function = Matches.pop(0)
-        Result.append(replace(Finding, Plan=_Plan_For(Node, Function, Parents, Finding, Math_Calls)))
+        Helpers = {Name for Begin, End, Names in Helper_Regions if Begin <= Node.lineno and Node.end_lineno <= End for Name in Names}
+        Result.append(replace(Finding, Plan=_Plan_For(Node, Function, Parents, Finding, Math_Calls, Helpers)))
     return Result
 
 def _Map_Adapter(Plan):

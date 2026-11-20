@@ -1,9 +1,13 @@
 import sys
-
+# Clone representative inputs while preserving aliases and accounting for memory cost.
 _Isolation_Limit = 64 * 1024 * 1024
 
 class _Probe_Resource(ValueError):
     pass
+
+def _Numpy_Scalar(Value):
+    Module = sys.modules.get('numpy')
+    return Module is not None and isinstance(Value, Module.generic) and not Value.dtype.hasobject
 
 class _Fragmented_Input:
     def __init__(self, Size):
@@ -39,7 +43,9 @@ def _Storage_Bytes(Args, Limit=_Isolation_Limit):
         if id(Value) in Seen:
             continue
         Seen.add(id(Value))
-        if hasattr(Value, "dtype"):
+        if _Numpy_Scalar(Value):
+            Total += sys.getsizeof(Value)
+        elif hasattr(Value, "dtype"):
             Owner = _Array_Owner(Value)
             if id(Owner) not in Storage:
                 Storage.add(id(Owner))
@@ -76,6 +82,8 @@ def _Copy(Args, Limit=_Isolation_Limit):
             Result._Requests = Value._Requests.copy()
         elif type(Value) is bytearray:
             Result = Value.copy()
+        elif _Numpy_Scalar(Value):
+            Result = Value
         elif hasattr(Value, "dtype"):
             import numpy as Numpy
             Owner = _Array_Owner(Value)
@@ -125,6 +133,8 @@ def _Value(Value):
             Record = (type(Item), Item._Data, Item._Position, _Visit(Item._Requests))
         elif type(Item) is bytearray:
             Record = (type(Item), bytes(Item))
+        elif _Numpy_Scalar(Item):
+            Record = (type(Item), Item.dtype.str, Item.tobytes())
         elif hasattr(Item, "dtype"):
             Owner = _Array_Owner(Item)
             Identity = Storage.setdefault(id(Owner), len(Storage))

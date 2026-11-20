@@ -5,7 +5,9 @@ include "Numeric_Generator.pxi"
 include "Scalar_Region_Generator.pxi"
 include "Dispatch_Instrumentation.pxi"
 include "Python_Module.pxi"
-
+from .Helper_Kernel import _Helper_Preamble
+from .Iterator_Kernel import _Iterator_Source
+# Compose guarded kernels with application source and implement public Convert and Compile entry points.
 cdef str _Tuned_Kernel(str Code, int Count):
     Names = re.findall(r"(?m)^cdef (?:inline )?\w+ (_Pyceler_\w+)\(", Code)
     for Name in sorted(Names, key=len, reverse=True):
@@ -27,6 +29,7 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
     Scalar_Kernels = []
     Has_Scalar_Regions = False
     Has_Module_Scalars = False
+    Has_List_Grid_Module = False
     Specials = []
     Streams = []
     Structures = []
@@ -49,6 +52,70 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
         Codes = {Mode for Rows in Table.values() for Size, Mode in Rows} if Table else set()
         Modes = {4 if Code >= 10000 else 2 if Code >= 100 else Code for Code in Codes}
         Native = Table is None or bool(Modes & {1, 2, 3, 4})
+        if Kind == 'indexed_filter':
+            if Native:
+                Math_Kernels.append(_Filter_Kernel(Plan, Line, Table is not None))
+                if Table is not None:
+                    Tables.append(f"{Prefix}Table_{Line} = {Table!r}")
+                Indent = Lines[Line - 1][:len(Lines[Line - 1]) - len(Lines[Line - 1].lstrip(' \t'))]
+                Replacement = _Filter_Source(Plan, Node, Line, Prefix, Table is not None)
+                Lines[Line - 1:Node.end_lineno] = [Indent + Value for Value in Replacement.splitlines()]
+            continue
+        if Kind == 'array_region':
+            if not Native:
+                continue
+            Has_List_Grid_Module |= Plan['Module']
+            Threads = Parallel and Plan['Parallel'] and (Table is None or 2 in Modes)
+            Has_Parallel |= Threads
+            Math_Kernels.append(_Array_Region_Kernel(Plan, Line, str(File), Table is not None, Threads, _Resource('Array_Region_Runtime.pxi.in')))
+            if Table is not None:
+                Tables.append(f"{Prefix}Table_{Line} = {Table!r}")
+            Indent = Lines[Line - 1][:len(Lines[Line - 1]) - len(Lines[Line - 1].lstrip(' \t'))]
+            Replacement = _Numeric_Region_Source(Plan, Node, Line, Prefix, Table)
+            Alternative = Plan.get('List_Alternative')
+            if Alternative is not None:
+                Label = str(Line) + '_List'
+                List_Threads = Parallel and Alternative['Parallel'] and (Table is None or any(Mode == 2 or 100 <= Mode < 10000 for Key, Rows in Table.items() if Key.startswith('list_') for Size, Mode in Rows))
+                Has_Parallel |= List_Threads
+                Math_Kernels.append(_Numeric_Region_Kernel(Alternative, Label, str(File), Table is not None, _Resource('Numeric_Region_Runtime.pxi.in'), List_Threads))
+                if Table is not None:
+                    Tables.append(f"{Prefix}Table_{Label} = {Table!r}")
+                Span = f'{Prefix}Storage_Span_{Line}'
+                Is_List = f'{Prefix}Storage_List_{Line}'
+                Objects = '(' + ', '.join(Alternative['Buffers']) + ',)'
+                Dispatch = [f'{Span} = {ast.unparse(Node.iter)}', f'{Is_List} = False', f'if {Prefix}Python_Builtins.type({Span}) is {Prefix}Python_Builtins.range and {Span}:', '    try:', f'        {Is_List} = {Prefix}Numeric_{Label}_Storage({Objects})', f'    except {Prefix}Numeric_{Label}_Name_Error:', '        pass', f'if {Is_List}:']
+                Dispatch.extend('    ' + Text for Text in _Numeric_Region_Source(Alternative, Node, Label, Prefix, Table, Span).splitlines())
+                Dispatch.append('else:')
+                Dispatch.extend('    ' + Text for Text in _Numeric_Region_Source(Plan, Node, Line, Prefix, Table, Span).splitlines())
+                Replacement = '\n'.join(Dispatch)
+                if 'Iterator' in Plan:
+                    Replacement = _Iterator_Source(Plan, Node, Line, Prefix, Table, Alternative)
+            Lines[Line - 1:Node.end_lineno] = [Indent + Value for Value in Replacement.splitlines()]
+            continue
+        if Kind == 'numeric_region':
+            if not Native:
+                continue
+            Has_List_Grid_Module |= Plan['Module']
+            Threads = Parallel and Plan['Parallel'] and (Table is None or 2 in Modes)
+            Has_Parallel |= Threads
+            Math_Kernels.append(_Numeric_Region_Kernel(Plan, Line, str(File), Table is not None, _Resource('Numeric_Region_Runtime.pxi.in'), Threads))
+            if Table is not None:
+                Tables.append(f"{Prefix}Table_{Line} = {Table!r}")
+            Indent = Lines[Line - 1][:len(Lines[Line - 1]) - len(Lines[Line - 1].lstrip(' \t'))]
+            Replacement = _Numeric_Region_Source(Plan, Node, Line, Prefix, Table)
+            Lines[Line - 1:Node.end_lineno] = [Indent + Value for Value in Replacement.splitlines()]
+            continue
+        if Kind == 'list_grid':
+            if not Native:
+                continue
+            Has_List_Grid_Module |= Plan['Module']
+            Math_Kernels.append(_List_Grid_Kernel(Plan, Line, str(File), Table is not None))
+            if Table is not None:
+                Tables.append(f"{Prefix}Table_{Line} = {Table!r}")
+            Indent = Lines[Line - 1][:len(Lines[Line - 1]) - len(Lines[Line - 1].lstrip(' \t'))]
+            Replacement = _List_Grid_Source(Plan, Node, Line, Prefix, Table)
+            Lines[Line - 1:Node.end_lineno] = [Indent + Value for Value in Replacement.splitlines()]
+            continue
         if Kind == 'math_map' and not Native:
             continue
         if Kind == "module_scalar":
@@ -132,11 +199,31 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
         First = Lines[Start - 1]
         Indent = First[:len(First) - len(First.lstrip(" \t"))]
         Baseline = f"{Prefix}Original_{Line}"
+        Alternatives = []
+        for Storage in ('List', 'Array'):
+            Alternative = Plan.get(Storage + '_Alternative') if Plan is not None else None
+            if Alternative is None:
+                continue
+            Label = str(Line) + '_' + Storage
+            Threaded = Parallel and Alternative['Parallel'] and (Table is None or any(Mode == 2 or 100 <= Mode < 10000 for Key, Rows in Table.items() if Key.startswith('list_') == (Storage == 'List') for Size, Mode in Rows))
+            Has_Parallel |= Threaded
+            if Storage == 'List':
+                Math_Kernels.append(_Numeric_Region_Kernel(Alternative, Label, str(File), Table is not None, _Resource('Numeric_Region_Runtime.pxi.in'), Threaded))
+            else:
+                Math_Kernels.append(_Array_Region_Kernel(Alternative, Label, str(File), Table is not None, Threaded, _Resource('Array_Region_Runtime.pxi.in')))
+            if Table is not None:
+                Tables.append(f"{Prefix}Table_{Label} = {Table!r}")
+            Replacement = _Numeric_Region_Source(Alternative, Node, Label, Prefix, Table).splitlines()
+            Objects = '(' + ', '.join(Alternative['Buffers']) + ',)'
+            Test = f'{Prefix}Numeric_{Label}_Storage({Objects})'
+            Alternatives.extend([Indent + ('elif ' if Alternatives else 'if ') + Test + ':', *(Indent + '    ' + Value for Value in Replacement)])
         if Region:
             Original = ast.unparse(Plan["Probe"])
             Region_Name = f"{Prefix}Region_{Line}"
             Assignment = Plan["Result"] + " = " if "Result" in Plan else ""
             Lines[Start - 1:Node.end_lineno] = [f"{Indent}{Assignment}{Region_Name}({Arguments})"]
+            if Alternatives:
+                Lines[Start - 1:Start] = [*Alternatives, Indent + 'else:', f'{Indent}    {Assignment}{Region_Name}({Arguments})']
             Indent = "    "
         else:
             Original = ast.get_source_segment(Text, Function)
@@ -210,11 +297,15 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
             Regions.append(f"cdef object {Baseline} = {Prefix}Baseline({Original!r}, {Prefix}Context, {File.name!r}, {Function.name!r})\n" +
                            f"cdef object {Region_Name}({', '.join('object ' + Name for Name in Names)}):\n" + "\n".join(Body))
         else:
-            End = Function.end_lineno if not Native else Node.end_lineno
+            End = Function.end_lineno if not Native and not Alternatives else Node.end_lineno
+            if Alternatives:
+                Body = [*Alternatives, Indent + 'else:', *('    ' + Value for Value in Body)]
             Lines[Start - 1:End] = Body
     Header = []
     if Has_Module_Scalars:
         Header.append(_Resource('Module_Runtime.pxi.in').replace('_Pyceler_', Prefix))
+    elif Has_List_Grid_Module:
+        Header.append(f"cdef object {Prefix}Module_Namespace():\n    return globals()")
     if Has_Scalar_Regions:
         Header.append(_Resource("Scalar_Region_Runtime.pxi.in").replace("_Pyceler_", Prefix).replace("REGION_FILENAME", repr(File.name)))
     if Has_Scalar_Sizing:
@@ -241,6 +332,7 @@ cdef str _Generate(object File, bint Parallel, tuple Members, object Choices=Non
         Imports += "\nfrom openmp cimport omp_in_parallel as _Pyceler_In_Parallel, omp_get_max_threads as _Pyceler_Max_Threads, omp_get_num_threads as _Pyceler_Reduction_Team, omp_get_dynamic as _Pyceler_Dynamic"
     Common = _Resource("Kernel_Common.pxi.in")
     Parts = [Common.replace("KERNEL_IMPORT", Imports)]
+    Parts.append(_Helper_Preamble(Text, [Edit[3] for Edit in Edits.values()]))
     Parts.extend(reversed(Math_Kernels))
     if Has_Clear:
         Clear = _Resource("Clear_Kernel.pxi.in")

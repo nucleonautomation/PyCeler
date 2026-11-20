@@ -1,6 +1,6 @@
 from dataclasses import replace
 from .Common_Analysis import _Definite_Bindings
-
+# Find extractable array regions inside larger Python control flow and track their visible bindings.
 cdef object _Region_Function(object Function, list Statements, tuple Names, str Result):
     Definition = ast.parse(f"def {Function.name}({', '.join(Names)}):\n    pass").body[0]
     Definition.body = [*Statements, ast.Return(value=ast.Name(id=Result, ctx=ast.Load()))]

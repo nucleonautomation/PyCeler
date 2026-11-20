@@ -6,7 +6,7 @@ from unittest.mock import patch
 from PyCeler import Convert
 from PyCeler.Selection_Worker import _Observe
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for validation, timing budgets and conservative dispatch.
 class Selection_Observation(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
@@ -16,7 +16,8 @@ class Selection_Observation(unittest.TestCase):
         def Statistics(Enabled=None, Reset=False):
             if Reset:
                 State.pop("Execution", None)
-            return dict(Execution=dict(State["Execution"])) if "Execution" in State else {}
+                State.pop('Totals', None)
+            return {Name: dict(State[Name]) for Name in ('Execution', 'Totals') if Name in State}
         Namespace = dict(Action=lambda: Action(State), _Pyceler_Module_Stats=lambda: dict(State["Module"]),
                          _Pyceler_Reduction_Stats=lambda: dict(State["Reduction"]), _Pyceler_Region_Stats=lambda: tuple(State["Region"]))
         if Dispatch:
@@ -90,6 +91,18 @@ class Selection_Observation(unittest.TestCase):
         self.assertFalse(Observation["Native_Entry"])
         self.assertEqual(Observation["Actual_Mode"], "python_fallback")
 
+    def test_Mixed_Numeric_Spans_Keep_Accumulated_Native_Evidence(self):
+        def Action(State):
+            State['Execution'] = dict(Reason='python_fallback', Native_Entry=False, Actual_Team=0)
+            State['Totals'] = dict(Native_Entries=2, Parallel_Entries=1, Maximum_Team=8)
+        Observation, Fallback = self._Observation(Action)
+        self.assertTrue(Fallback)
+        self.assertTrue(Observation['Native_Entry'])
+        self.assertEqual(Observation['Actual_Mode'], 'python_fallback')
+        self.assertEqual(Observation['Actual_Team'], 8)
+        self.assertEqual(Observation['Native_Spans'], 2)
+        self.assertEqual(Observation['Parallel_Spans'], 1)
+
     def test_Legacy_Reduction_And_Region_Deltas_Remain_Observable(self):
         def Reduction(State):
             State["Reduction"]["Parallel_Calls"] += 1
@@ -106,7 +119,7 @@ class Selection_Observation(unittest.TestCase):
         self.assertEqual(Observation["Actual_Mode"], "serial")
 
     def test_Measured_Module_Candidates_Report_Actual_Native_Teams(self):
-        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:
+        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:  # Keep generated sources and binaries outside the maintained fixture tree.
             Folder = Path(Directory)
             Source = Folder / "Observed_Module.py"
             Source.write_text("Total = 0\nfor Index in range(100000):\n    Total += (Index * Index + Index * 7) % 999983\n", encoding="utf-8")

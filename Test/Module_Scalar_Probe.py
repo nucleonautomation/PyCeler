@@ -2,7 +2,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-
+# Isolated verification for observable module globals and partial failures.
 def _Run(File, Name, Fields):
     Spec = importlib.util.spec_from_file_location(Name, File)
     Module = importlib.util.module_from_spec(Spec)

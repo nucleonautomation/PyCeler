@@ -1,0 +1,822 @@
+{
+  "Format": "PyCeler selection 1",
+  "Source": "C:\\ProgramData\\PyCeler\\Example\\Quick_Start.py",
+  "Status": "measurement_disabled",
+  "Measurement": false,
+  "Findings": [
+    {
+      "Function": "transform",
+      "Line": 8,
+      "End_Line": 11,
+      "Indexed_Reads": [],
+      "Indexed_Writes": [],
+      "Classification": "Guarded_Array_Region",
+      "Reason": "Typed ndarray regions preserve operation order, scalar dtype and final locals; only disjoint independent outer slices are parallel candidates.",
+      "Change": "Buffered ndarray arithmetic with proven-independent OpenMP rows",
+      "Source": "C:\\ProgramData\\PyCeler\\Example\\Quick_Start.py",
+      "Cost_Score": 76.0,
+      "Estimated_Iterations": null,
+      "Nesting_Depth": 1,
+      "Cost_Reason": "Static heuristic: unknown iteration count; nesting depth 1; 2 arithmetic operations, 3 indexed accesses and 0 branches/comparisons in the loop subtree. The score ranks inspection priority, not correctness eligibility or measured speedup.",
+      "Constraints": [
+        "Validated ndarray storage and primitive dtypes",
+        "Exact ordered arithmetic and original continuation",
+        "Dependency proof before OpenMP"
+      ],
+      "Transformations": [
+        "Native ndarray regions",
+        "Rank-specific stride indexing",
+        "Ordered reductions and independent OpenMP rows"
+      ],
+      "Diagnostics": [],
+      "Plan": {
+        "Version": 1,
+        "Kind": "For",
+        "Location": [
+          8,
+          5,
+          11,
+          75
+        ],
+        "Shape_Key": "bf0be78f69ac31739fd55f1f807a2c351f2c14d6ebde6610a0d7c6a7b131e1a8",
+        "Blocks": [
+          {
+            "Id": 0,
+            "Parent": null,
+            "Kind": "For",
+            "Location": [
+              8,
+              5,
+              11,
+              75
+            ],
+            "Defines": [
+              "row"
+            ],
+            "Uses": [
+              "len",
+              "range",
+              "values"
+            ],
+            "Successors": [
+              1
+            ],
+            "Exit": ""
+          },
+          {
+            "Id": 1,
+            "Parent": 0,
+            "Kind": "For",
+            "Location": [
+              9,
+              9,
+              11,
+              75
+            ],
+            "Defines": [
+              "column"
+            ],
+            "Uses": [
+              "len",
+              "range",
+              "values"
+            ],
+            "Successors": [
+              3,
+              0
+            ],
+            "Exit": ""
+          },
+          {
+            "Id": 2,
+            "Parent": 1,
+            "Kind": "Assign",
+            "Location": [
+              11,
+              13,
+              11,
+              75
+            ],
+            "Defines": [],
+            "Uses": [
+              "column",
+              "math",
+              "output",
+              "row",
+              "value"
+            ],
+            "Successors": [
+              1
+            ],
+            "Exit": ""
+          },
+          {
+            "Id": 3,
+            "Parent": 1,
+            "Kind": "Assign",
+            "Location": [
+              10,
+              13,
+              10,
+              40
+            ],
+            "Defines": [
+              "value"
+            ],
+            "Uses": [
+              "column",
+              "row",
+              "values"
+            ],
+            "Successors": [
+              2
+            ],
+            "Exit": ""
+          }
+        ],
+        "Inputs": [
+          "len",
+          "math",
+          "output",
+          "range",
+          "values"
+        ],
+        "Definitions": [
+          "column",
+          "row",
+          "value"
+        ],
+        "Live_Out": [],
+        "Loop_Carried": [],
+        "Indexed_Reads": [
+          "values[0]",
+          "values[row, column]"
+        ],
+        "Indexed_Writes": [
+          "output[row, column]"
+        ],
+        "Calls": [
+          {
+            "Name": "range",
+            "Location": [
+              8,
+              16,
+              8,
+              34
+            ],
+            "Effect": "conditional_builtin",
+            "Binding": "runtime_guard_required",
+            "Status": "guard_required",
+            "Reason": "Binding, argument types and iteration/conversion behavior require validation.",
+            "Contract": ""
+          },
+          {
+            "Name": "len",
+            "Location": [
+              8,
+              22,
+              8,
+              33
+            ],
+            "Effect": "conditional_builtin",
+            "Binding": "runtime_guard_required",
+            "Status": "guard_required",
+            "Reason": "Binding, argument types and iteration/conversion behavior require validation.",
+            "Contract": ""
+          },
+          {
+            "Name": "range",
+            "Location": [
+              9,
+              23,
+              9,
+              44
+            ],
+            "Effect": "conditional_builtin",
+            "Binding": "runtime_guard_required",
+            "Status": "guard_required",
+            "Reason": "Binding, argument types and iteration/conversion behavior require validation.",
+            "Contract": ""
+          },
+          {
+            "Name": "len",
+            "Location": [
+              9,
+              29,
+              9,
+              43
+            ],
+            "Effect": "conditional_builtin",
+            "Binding": "runtime_guard_required",
+            "Status": "guard_required",
+            "Reason": "Binding, argument types and iteration/conversion behavior require validation.",
+            "Contract": ""
+          },
+          {
+            "Name": "math.sin",
+            "Location": [
+              11,
+              35,
+              11,
+              50
+            ],
+            "Effect": "conditional_numeric",
+            "Binding": "Imported",
+            "Status": "Recognized",
+            "Reason": "Unproven values, changed bindings or observer conditions retain ordered original calls; unsupported whole regions retain Python.",
+            "Contract": "{\"Available\":true,\"Binding_Contract\":\"Resolve the same callable at the original execution point; revalidate after callbacks and guard concurrent mutation.\",\"Category\":\"Trigonometric\",\"Conversions\":\"Preserve argument evaluation and conversion order; exact builtin/array scalar types require separate guards.\",\"Documentation\":\"https://docs.python.org/3.14/library/math.html#math.sin\",\"Domain\":\"Finite arguments or NaN; infinite arguments raise ValueError; preserve signed zero.\",\"Exceptions\":[\"TypeError\",\"ValueError\",\"OverflowError\",\"Exceptions_From_Conversion\"],\"Fallback_Reason\":\"Unproven values, changed bindings or observer conditions retain ordered original calls; unsupported whole regions retain Python.\",\"Implementation_Scope\":\"Qualifying numeric-array maps only; arbitrary call sites, objects and unsupported control flow retain Python.\",\"Implementation_Strategies\":[\"Ordered_Original_Library_Calls\",\"Guarded_Serial_Float64\",\"Guarded_OpenMP_Float64\"],\"Inputs\":\"Real numbers accepted by Python float conversion; custom conversion hooks retain Python execution.\",\"Keyword_Arguments\":[],\"Kind\":\"Function\",\"Maximum_Arguments\":1,\"Minimum_Numpy\":null,\"Minimum_Python\":[3,11],\"Module\":\"math\",\"Name\":\"sin\",\"Native_Availability\":\"Guarded_Thin_Libm_Path\",\"Native_Implemented\":true,\"Native_Requirements\":[\"One-dimensional exact float64 arrays\",\"Contiguous aligned disjoint storage\",\"Validated finite inputs and every intermediate\",\"Original math callable identity\",\"Exclusive observer and floating-environment guards\",\"Ordered continuation before uncommitted effects\"],\"Native_Symbol\":\"sin\",\"Nogil_Eligible\":true,\"Ordered_Loop_Implemented\":true,\"Parameter_Names\":[\"x\"],\"Positional_Only\":true,\"Precision\":\"Exact Python behavior on the active platform; no fast-math, reassociation or implicit fusion.\",\"Qualification\":\"Platform-specific native execution, differential comparisons and measured selection remain required.\",\"Qualified_Name\":\"math.sin\",\"Registry_Version\":3,\"Required_Arguments\":1,\"Return_Type\":\"float\",\"Status\":\"Guarded_Unboxed_Region_Support\"}"
+          },
+          {
+            "Name": "math.sqrt",
+            "Location": [
+              11,
+              53,
+              11,
+              75
+            ],
+            "Effect": "conditional_numeric",
+            "Binding": "Imported",
+            "Status": "Recognized",
+            "Reason": "Unproven values, changed bindings or observer conditions retain ordered original calls; unsupported whole regions retain Python.",
+            "Contract": "{\"Available\":true,\"Binding_Contract\":\"Resolve the same callable at the original execution point; revalidate after callbacks and guard concurrent mutation.\",\"Category\":\"Roots_Powers\",\"Conversions\":\"Preserve argument evaluation and conversion order; exact builtin/array scalar types require separate guards.\",\"Documentation\":\"https://docs.python.org/3.14/library/math.html#math.sqrt\",\"Domain\":\"Finite x >= 0; preserve negative-zero sign, NaN and positive infinity; negative inputs raise ValueError.\",\"Exceptions\":[\"TypeError\",\"ValueError\",\"OverflowError\",\"Exceptions_From_Conversion\"],\"Fallback_Reason\":\"Unproven values, changed bindings or observer conditions retain ordered original calls; unsupported whole regions retain Python.\",\"Implementation_Scope\":\"Qualifying numeric-array maps only; arbitrary call sites, objects and unsupported control flow retain Python.\",\"Implementation_Strategies\":[\"Ordered_Original_Library_Calls\",\"Guarded_Serial_Float64\",\"Guarded_OpenMP_Float64\"],\"Inputs\":\"Real numbers accepted by Python float conversion; custom conversion hooks retain Python execution.\",\"Keyword_Arguments\":[],\"Kind\":\"Function\",\"Maximum_Arguments\":1,\"Minimum_Numpy\":null,\"Minimum_Python\":[3,11],\"Module\":\"math\",\"Name\":\"sqrt\",\"Native_Availability\":\"Guarded_Thin_Libm_Path\",\"Native_Implemented\":true,\"Native_Requirements\":[\"One-dimensional exact float64 arrays\",\"Contiguous aligned disjoint storage\",\"Validated finite inputs and every intermediate\",\"Original math callable identity\",\"Exclusive observer and floating-environment guards\",\"Ordered continuation before uncommitted effects\"],\"Native_Symbol\":\"sqrt\",\"Nogil_Eligible\":true,\"Ordered_Loop_Implemented\":true,\"Parameter_Names\":[\"x\"],\"Positional_Only\":true,\"Precision\":\"Exact Python behavior on the active platform; no fast-math, reassociation or implicit fusion.\",\"Qualification\":\"Platform-specific native execution, differential comparisons and measured selection remain required.\",\"Qualified_Name\":\"math.sqrt\",\"Registry_Version\":3,\"Required_Arguments\":1,\"Return_Type\":\"float\",\"Status\":\"Guarded_Unboxed_Region_Support\"}"
+          }
+        ],
+        "Expressions": [
+          {
+            "Kind": "Call",
+            "Location": [
+              8,
+              16,
+              8,
+              34
+            ],
+            "Text": "range(len(values))",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "Call",
+            "Location": [
+              8,
+              22,
+              8,
+              33
+            ],
+            "Text": "len(values)",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "Call",
+            "Location": [
+              9,
+              23,
+              9,
+              44
+            ],
+            "Text": "range(len(values[0]))",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "Call",
+            "Location": [
+              9,
+              29,
+              9,
+              43
+            ],
+            "Text": "len(values[0])",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "Subscript",
+            "Location": [
+              9,
+              33,
+              9,
+              42
+            ],
+            "Text": "values[0]",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "Subscript",
+            "Location": [
+              10,
+              21,
+              10,
+              40
+            ],
+            "Text": "values[row, column]",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "Subscript",
+            "Location": [
+              11,
+              13,
+              11,
+              32
+            ],
+            "Text": "output[row, column]",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "Call",
+            "Location": [
+              11,
+              35,
+              11,
+              50
+            ],
+            "Text": "math.sin(value)",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "BinOp",
+            "Location": [
+              11,
+              35,
+              11,
+              75
+            ],
+            "Text": "math.sin(value) + math.sqrt(value + 1.0)",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "Call",
+            "Location": [
+              11,
+              53,
+              11,
+              75
+            ],
+            "Text": "math.sqrt(value + 1.0)",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "BinOp",
+            "Location": [
+              11,
+              63,
+              11,
+              74
+            ],
+            "Text": "value + 1.0",
+            "Evaluation": "python_order"
+          }
+        ],
+        "Type_Facts": [
+          {
+            "Name": "len",
+            "Category": "unknown",
+            "Evidence": "unresolved",
+            "Detail": "Runtime type and conversion behavior require guards."
+          },
+          {
+            "Name": "math",
+            "Category": "unknown",
+            "Evidence": "unresolved",
+            "Detail": "Runtime type and conversion behavior require guards."
+          },
+          {
+            "Name": "output",
+            "Category": "unknown",
+            "Evidence": "unresolved",
+            "Detail": "Runtime type and conversion behavior require guards."
+          },
+          {
+            "Name": "range",
+            "Category": "unknown",
+            "Evidence": "unresolved",
+            "Detail": "Runtime type and conversion behavior require guards."
+          },
+          {
+            "Name": "values",
+            "Category": "unknown",
+            "Evidence": "unresolved",
+            "Detail": "Runtime type and conversion behavior require guards."
+          }
+        ],
+        "Effects": [
+          "attribute_read",
+          "call_or_conversion",
+          "indexed_read",
+          "indexed_write",
+          "numeric_or_overloaded_operation"
+        ],
+        "Exits": [
+          "exception",
+          "normal"
+        ],
+        "Serial_Status": "guarded_candidate",
+        "Parallel_Status": "guarded_candidate",
+        "Guards": [
+          "Preserve evaluation and exception order",
+          "Validate mutable bindings and input types before native entry",
+          "Validate shape, layout, writability and every index bound",
+          "Check overlapping array storage before reordering or parallel writes",
+          "Validated ndarray storage and primitive dtypes",
+          "Exact ordered arithmetic and original continuation",
+          "Dependency proof before OpenMP"
+        ],
+        "Blockers": [],
+        "Adapter": "Guarded_Array_Region",
+        "Iteration_Clauses": 1
+      }
+    },
+    {
+      "Function": "transform",
+      "Line": 9,
+      "End_Line": 11,
+      "Indexed_Reads": [
+        "values[row, column]"
+      ],
+      "Indexed_Writes": [
+        "output[row, column]"
+      ],
+      "Classification": "Guarded_Array_Region",
+      "Reason": "Typed ndarray regions preserve operation order, scalar dtype and final locals; only disjoint independent outer slices are parallel candidates.",
+      "Change": "Buffered ndarray arithmetic with proven-independent OpenMP rows",
+      "Source": "C:\\ProgramData\\PyCeler\\Example\\Quick_Start.py",
+      "Cost_Score": 102.0,
+      "Estimated_Iterations": null,
+      "Nesting_Depth": 2,
+      "Cost_Reason": "Static heuristic: unknown iteration count; nesting depth 2; 2 arithmetic operations, 3 indexed accesses and 0 branches/comparisons in the loop subtree. The score ranks inspection priority, not correctness eligibility or measured speedup.",
+      "Constraints": [
+        "Validated ndarray storage and primitive dtypes",
+        "Exact ordered arithmetic and original continuation",
+        "Dependency proof before OpenMP"
+      ],
+      "Transformations": [
+        "Native ndarray regions",
+        "Rank-specific stride indexing",
+        "Ordered reductions and independent OpenMP rows"
+      ],
+      "Diagnostics": [],
+      "Plan": {
+        "Version": 1,
+        "Kind": "For",
+        "Location": [
+          9,
+          9,
+          11,
+          75
+        ],
+        "Shape_Key": "d110c9b35c82e6c64b1e9c293694bf2de1b8966575e7118e9af7b7467675597e",
+        "Blocks": [
+          {
+            "Id": 0,
+            "Parent": null,
+            "Kind": "For",
+            "Location": [
+              9,
+              9,
+              11,
+              75
+            ],
+            "Defines": [
+              "column"
+            ],
+            "Uses": [
+              "len",
+              "range",
+              "values"
+            ],
+            "Successors": [
+              2
+            ],
+            "Exit": ""
+          },
+          {
+            "Id": 1,
+            "Parent": 0,
+            "Kind": "Assign",
+            "Location": [
+              11,
+              13,
+              11,
+              75
+            ],
+            "Defines": [],
+            "Uses": [
+              "column",
+              "math",
+              "output",
+              "row",
+              "value"
+            ],
+            "Successors": [
+              0
+            ],
+            "Exit": ""
+          },
+          {
+            "Id": 2,
+            "Parent": 0,
+            "Kind": "Assign",
+            "Location": [
+              10,
+              13,
+              10,
+              40
+            ],
+            "Defines": [
+              "value"
+            ],
+            "Uses": [
+              "column",
+              "row",
+              "values"
+            ],
+            "Successors": [
+              1
+            ],
+            "Exit": ""
+          }
+        ],
+        "Inputs": [
+          "len",
+          "math",
+          "output",
+          "range",
+          "row",
+          "values"
+        ],
+        "Definitions": [
+          "column",
+          "value"
+        ],
+        "Live_Out": [],
+        "Loop_Carried": [],
+        "Indexed_Reads": [
+          "values[0]",
+          "values[row, column]"
+        ],
+        "Indexed_Writes": [
+          "output[row, column]"
+        ],
+        "Calls": [
+          {
+            "Name": "range",
+            "Location": [
+              9,
+              23,
+              9,
+              44
+            ],
+            "Effect": "conditional_builtin",
+            "Binding": "runtime_guard_required",
+            "Status": "guard_required",
+            "Reason": "Binding, argument types and iteration/conversion behavior require validation.",
+            "Contract": ""
+          },
+          {
+            "Name": "len",
+            "Location": [
+              9,
+              29,
+              9,
+              43
+            ],
+            "Effect": "conditional_builtin",
+            "Binding": "runtime_guard_required",
+            "Status": "guard_required",
+            "Reason": "Binding, argument types and iteration/conversion behavior require validation.",
+            "Contract": ""
+          },
+          {
+            "Name": "math.sin",
+            "Location": [
+              11,
+              35,
+              11,
+              50
+            ],
+            "Effect": "conditional_numeric",
+            "Binding": "Imported",
+            "Status": "Recognized",
+            "Reason": "Unproven values, changed bindings or observer conditions retain ordered original calls; unsupported whole regions retain Python.",
+            "Contract": "{\"Available\":true,\"Binding_Contract\":\"Resolve the same callable at the original execution point; revalidate after callbacks and guard concurrent mutation.\",\"Category\":\"Trigonometric\",\"Conversions\":\"Preserve argument evaluation and conversion order; exact builtin/array scalar types require separate guards.\",\"Documentation\":\"https://docs.python.org/3.14/library/math.html#math.sin\",\"Domain\":\"Finite arguments or NaN; infinite arguments raise ValueError; preserve signed zero.\",\"Exceptions\":[\"TypeError\",\"ValueError\",\"OverflowError\",\"Exceptions_From_Conversion\"],\"Fallback_Reason\":\"Unproven values, changed bindings or observer conditions retain ordered original calls; unsupported whole regions retain Python.\",\"Implementation_Scope\":\"Qualifying numeric-array maps only; arbitrary call sites, objects and unsupported control flow retain Python.\",\"Implementation_Strategies\":[\"Ordered_Original_Library_Calls\",\"Guarded_Serial_Float64\",\"Guarded_OpenMP_Float64\"],\"Inputs\":\"Real numbers accepted by Python float conversion; custom conversion hooks retain Python execution.\",\"Keyword_Arguments\":[],\"Kind\":\"Function\",\"Maximum_Arguments\":1,\"Minimum_Numpy\":null,\"Minimum_Python\":[3,11],\"Module\":\"math\",\"Name\":\"sin\",\"Native_Availability\":\"Guarded_Thin_Libm_Path\",\"Native_Implemented\":true,\"Native_Requirements\":[\"One-dimensional exact float64 arrays\",\"Contiguous aligned disjoint storage\",\"Validated finite inputs and every intermediate\",\"Original math callable identity\",\"Exclusive observer and floating-environment guards\",\"Ordered continuation before uncommitted effects\"],\"Native_Symbol\":\"sin\",\"Nogil_Eligible\":true,\"Ordered_Loop_Implemented\":true,\"Parameter_Names\":[\"x\"],\"Positional_Only\":true,\"Precision\":\"Exact Python behavior on the active platform; no fast-math, reassociation or implicit fusion.\",\"Qualification\":\"Platform-specific native execution, differential comparisons and measured selection remain required.\",\"Qualified_Name\":\"math.sin\",\"Registry_Version\":3,\"Required_Arguments\":1,\"Return_Type\":\"float\",\"Status\":\"Guarded_Unboxed_Region_Support\"}"
+          },
+          {
+            "Name": "math.sqrt",
+            "Location": [
+              11,
+              53,
+              11,
+              75
+            ],
+            "Effect": "conditional_numeric",
+            "Binding": "Imported",
+            "Status": "Recognized",
+            "Reason": "Unproven values, changed bindings or observer conditions retain ordered original calls; unsupported whole regions retain Python.",
+            "Contract": "{\"Available\":true,\"Binding_Contract\":\"Resolve the same callable at the original execution point; revalidate after callbacks and guard concurrent mutation.\",\"Category\":\"Roots_Powers\",\"Conversions\":\"Preserve argument evaluation and conversion order; exact builtin/array scalar types require separate guards.\",\"Documentation\":\"https://docs.python.org/3.14/library/math.html#math.sqrt\",\"Domain\":\"Finite x >= 0; preserve negative-zero sign, NaN and positive infinity; negative inputs raise ValueError.\",\"Exceptions\":[\"TypeError\",\"ValueError\",\"OverflowError\",\"Exceptions_From_Conversion\"],\"Fallback_Reason\":\"Unproven values, changed bindings or observer conditions retain ordered original calls; unsupported whole regions retain Python.\",\"Implementation_Scope\":\"Qualifying numeric-array maps only; arbitrary call sites, objects and unsupported control flow retain Python.\",\"Implementation_Strategies\":[\"Ordered_Original_Library_Calls\",\"Guarded_Serial_Float64\",\"Guarded_OpenMP_Float64\"],\"Inputs\":\"Real numbers accepted by Python float conversion; custom conversion hooks retain Python execution.\",\"Keyword_Arguments\":[],\"Kind\":\"Function\",\"Maximum_Arguments\":1,\"Minimum_Numpy\":null,\"Minimum_Python\":[3,11],\"Module\":\"math\",\"Name\":\"sqrt\",\"Native_Availability\":\"Guarded_Thin_Libm_Path\",\"Native_Implemented\":true,\"Native_Requirements\":[\"One-dimensional exact float64 arrays\",\"Contiguous aligned disjoint storage\",\"Validated finite inputs and every intermediate\",\"Original math callable identity\",\"Exclusive observer and floating-environment guards\",\"Ordered continuation before uncommitted effects\"],\"Native_Symbol\":\"sqrt\",\"Nogil_Eligible\":true,\"Ordered_Loop_Implemented\":true,\"Parameter_Names\":[\"x\"],\"Positional_Only\":true,\"Precision\":\"Exact Python behavior on the active platform; no fast-math, reassociation or implicit fusion.\",\"Qualification\":\"Platform-specific native execution, differential comparisons and measured selection remain required.\",\"Qualified_Name\":\"math.sqrt\",\"Registry_Version\":3,\"Required_Arguments\":1,\"Return_Type\":\"float\",\"Status\":\"Guarded_Unboxed_Region_Support\"}"
+          }
+        ],
+        "Expressions": [
+          {
+            "Kind": "Call",
+            "Location": [
+              9,
+              23,
+              9,
+              44
+            ],
+            "Text": "range(len(values[0]))",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "Call",
+            "Location": [
+              9,
+              29,
+              9,
+              43
+            ],
+            "Text": "len(values[0])",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "Subscript",
+            "Location": [
+              9,
+              33,
+              9,
+              42
+            ],
+            "Text": "values[0]",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "Subscript",
+            "Location": [
+              10,
+              21,
+              10,
+              40
+            ],
+            "Text": "values[row, column]",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "Subscript",
+            "Location": [
+              11,
+              13,
+              11,
+              32
+            ],
+            "Text": "output[row, column]",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "Call",
+            "Location": [
+              11,
+              35,
+              11,
+              50
+            ],
+            "Text": "math.sin(value)",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "BinOp",
+            "Location": [
+              11,
+              35,
+              11,
+              75
+            ],
+            "Text": "math.sin(value) + math.sqrt(value + 1.0)",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "Call",
+            "Location": [
+              11,
+              53,
+              11,
+              75
+            ],
+            "Text": "math.sqrt(value + 1.0)",
+            "Evaluation": "python_order"
+          },
+          {
+            "Kind": "BinOp",
+            "Location": [
+              11,
+              63,
+              11,
+              74
+            ],
+            "Text": "value + 1.0",
+            "Evaluation": "python_order"
+          }
+        ],
+        "Type_Facts": [
+          {
+            "Name": "len",
+            "Category": "unknown",
+            "Evidence": "unresolved",
+            "Detail": "Runtime type and conversion behavior require guards."
+          },
+          {
+            "Name": "math",
+            "Category": "unknown",
+            "Evidence": "unresolved",
+            "Detail": "Runtime type and conversion behavior require guards."
+          },
+          {
+            "Name": "output",
+            "Category": "unknown",
+            "Evidence": "unresolved",
+            "Detail": "Runtime type and conversion behavior require guards."
+          },
+          {
+            "Name": "range",
+            "Category": "unknown",
+            "Evidence": "unresolved",
+            "Detail": "Runtime type and conversion behavior require guards."
+          },
+          {
+            "Name": "row",
+            "Category": "unknown",
+            "Evidence": "unresolved",
+            "Detail": "Runtime type and conversion behavior require guards."
+          },
+          {
+            "Name": "values",
+            "Category": "unknown",
+            "Evidence": "unresolved",
+            "Detail": "Runtime type and conversion behavior require guards."
+          }
+        ],
+        "Effects": [
+          "attribute_read",
+          "call_or_conversion",
+          "indexed_read",
+          "indexed_write",
+          "numeric_or_overloaded_operation"
+        ],
+        "Exits": [
+          "exception",
+          "normal"
+        ],
+        "Serial_Status": "guarded_candidate",
+        "Parallel_Status": "guarded_candidate",
+        "Guards": [
+          "Preserve evaluation and exception order",
+          "Validate mutable bindings and input types before native entry",
+          "Validate shape, layout, writability and every index bound",
+          "Check overlapping array storage before reordering or parallel writes",
+          "Validated ndarray storage and primitive dtypes",
+          "Exact ordered arithmetic and original continuation",
+          "Dependency proof before OpenMP"
+        ],
+        "Blockers": [
+          "Indexed write output[row, column] needs a proof of unique, bounded iteration addresses."
+        ],
+        "Adapter": "Guarded_Array_Region",
+        "Iteration_Clauses": 1
+      }
+    }
+  ],
+  "Eligible_Regions": [
+    {
+      "Function": "transform",
+      "Line": 8,
+      "End_Line": 11,
+      "Kind": "array_region",
+      "Status": "unmeasured",
+      "Transformations": [
+        "Native ndarray regions",
+        "Rank-specific stride indexing",
+        "Ordered reductions and independent OpenMP rows"
+      ]
+    }
+  ],
+  "Items": [
+    {
+      "Function": "transform",
+      "Line": 8,
+      "End_Line": 11,
+      "Kind": "array_region",
+      "Status": "unmeasured",
+      "Transformations": [
+        "Native ndarray regions",
+        "Rank-specific stride indexing",
+        "Ordered reductions and independent OpenMP rows"
+      ]
+    }
+  ],
+  "Skipped": [],
+  "Builds": {},
+  "Fallback_Contract": "One readable Cython module contains the application, guarded native kernels and explicit fallback code; Python-style definitions are compiled by Cython.",
+  "Summary": {
+    "Candidate_Regions": 1,
+    "Native_Selected_Regions": 0,
+    "Skipped_Loops": 0,
+    "Candidate_Builds": 0,
+    "Scope": "Static analysis only; eligible candidates were not behaviorally validated or timed"
+  }
+}

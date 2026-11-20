@@ -2,7 +2,7 @@ import importlib.util
 import sys
 import numpy as Numpy
 import Loop_Workloads as Native
-
+# Isolated verification for loop.
 Spec = importlib.util.spec_from_file_location("Original_Loops", Reference_Path)
 Original = importlib.util.module_from_spec(Spec)
 Spec.loader.exec_module(Original)

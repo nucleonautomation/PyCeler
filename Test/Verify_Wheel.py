@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-
+# Isolated verification for verify wheel.
 def _Verify(Wheel, Python=None, Output=None):
     Root = Path(__file__).resolve().parents[1]
     Wheel = Path(Wheel).resolve()

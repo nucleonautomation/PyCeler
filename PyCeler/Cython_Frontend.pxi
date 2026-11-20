@@ -1,6 +1,6 @@
 class _Cython_Static_Error(Exception):
     pass
-
+# Inspect existing Cython conservatively; do not reinterpret typed source as ordinary Python AST.
 cdef list _Cython_Children(object Node):
     Children = []
     for Attribute in getattr(Node, "child_attrs", ()):

@@ -1,4 +1,4 @@
-cdef str _Median_Kernel(dict Plan, int Line, bint Parallel):
+cdef str _Median_Kernel(dict Plan, int Line, bint Parallel):  # Generate the specialized integer-neighborhood median worker selected by Numeric_Planner.
     Row = f"_Pyceler_Median_Row_{Line}"
     Run = f"_Pyceler_Median_Run_{Line}"
     Views = "const _Pyceler_Value[:, ::1] Input, _Pyceler_Value[:, ::1] Output"

@@ -37,7 +37,7 @@ cdef object _Row_Selection(object Function, object Loop, set Bound):
     return dict(Kind="row_selection", Label="row-wise best index", Names=tuple(Names), Output=Output, Key=Source,
                 Start=Loop.lineno, Region=True, Private=Temps, Probe=_Region_Function(Function, [Loop], tuple(Names), Output),
                 Loops=[Loop, Inner], Operator=Operator, Named=Named)
-
+# Recognize row-selection patterns and preserve output and tie-breaking behavior.
 cdef str _Row_Selection_Kernel(dict Plan, int Line, bint Parallel):
     Item, Run = f"_Pyceler_Best_{Line}", f"_Pyceler_Best_Rows_{Line}"
     Extra = [f"V{Axis}" for Axis in Plan["Named"]]

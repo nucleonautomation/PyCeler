@@ -7,3 +7,7 @@
 /PyCeler/*.pyd
 /PyCeler/*.so
 __pycache__/
+/Example/Loops/*.pyx
+/Example/Loops/*.json
+/Example/Benchmarks/*.pyx
+/Example/Benchmarks/*.json

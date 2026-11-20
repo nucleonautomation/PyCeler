@@ -11,7 +11,7 @@ from pathlib import Path
 from time import perf_counter_ns
 from Benchmark_Structural import _Load, _Copy, _Observe
 import Structural_Workloads
-
+# Test support/workload for compare structural.
 def _Main():
     Parser = argparse.ArgumentParser(description="Validate and interleave two existing structural binaries against Python on identical holdouts.")
     Parser.add_argument("before", type=Path)

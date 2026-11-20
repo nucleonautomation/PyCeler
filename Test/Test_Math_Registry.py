@@ -7,7 +7,7 @@ import sys
 import unittest
 from pathlib import Path
 from unittest import mock
-
+# Regression checks for math/cmath/NumPy call contracts and binding resolution.
 _Path = Path(__file__).resolve().parents[1] / "PyCeler" / "Math_Registry.py"
 _Spec = importlib.util.spec_from_file_location("_PyCeler_Math_Registry_Test", _Path)
 _Registry = importlib.util.module_from_spec(_Spec)
@@ -88,7 +88,7 @@ class Math_Registry(unittest.TestCase):
         self.assertNotEqual(_Registry._Math_Record("math", "pow")["Inputs"], _Registry._Math_Record("builtins", "pow")["Inputs"])
 
     def test_Advertised_Unboxed_Registry_Matches_Generator(self):
-        Spec = importlib.util.spec_from_file_location("_PyCeler_Fast_Math_Test", _Path.with_name("Fast_Math.py"))
+        Spec = importlib.util.spec_from_file_location("PyCeler._PyCeler_Fast_Math_Test", _Path.with_name("Fast_Math.py"))
         Fast = importlib.util.module_from_spec(Spec)
         Spec.loader.exec_module(Fast)
         self.assertEqual(_Registry._Guarded_Unboxed, frozenset(Fast._Fast_Call_Contracts))

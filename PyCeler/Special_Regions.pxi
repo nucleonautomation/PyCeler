@@ -4,7 +4,7 @@ cdef object _Literal_Int(object Node):
     if isinstance(Node, ast.UnaryOp) and isinstance(Node.op, ast.USub) and isinstance(Node.operand, ast.Constant) and type(Node.operand.value) is int:
         return -Node.operand.value
     return None
-
+# Recognize stencil, neighborhood and count patterns with explicit margins and index constraints.
 cdef object _Margin_Loop(object Node):
     if not isinstance(Node, ast.For) or Node.orelse or not isinstance(Node.target, ast.Name):
         return None

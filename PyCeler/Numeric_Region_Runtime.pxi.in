@@ -1,0 +1,332 @@
+from cpython.list cimport PyList_GetItem as NUMERIC_PREFIXGet, PyList_SetItem as NUMERIC_PREFIXSet, PyList_Size as NUMERIC_PREFIXLength
+from cpython.ref cimport Py_INCREF as NUMERIC_PREFIXRetain
+# Buffer numeric list work and publish validated values with their required Python identities.
+cdef extern from "Python.h":
+    NUMERIC_PREFIXObject* NUMERIC_PREFIXNew_Float "PyFloat_FromDouble"(double Value) except NULL
+    int NUMERIC_PREFIXRaw_Set "PyList_SetItem"(object Row, Py_ssize_t Position, NUMERIC_PREFIXObject* Value) except -1
+
+cdef inline int NUMERIC_PREFIXStore(list Row, Py_ssize_t Position, object Value) except -1:
+    NUMERIC_PREFIXRetain(Value)
+    NUMERIC_PREFIXSet(Row, Position, Value)
+    return 0
+
+cdef inline int NUMERIC_PREFIXPublish(list Row, Py_ssize_t Position, list Boxed, Py_ssize_t Offset) except -1:
+    cdef NUMERIC_PREFIXObject* Cell = NUMERIC_PREFIXGet(Boxed, Offset)
+    NUMERIC_PREFIXRetain(<object>Cell)
+    NUMERIC_PREFIXRaw_Set(Row, Position, Cell)
+    return 0
+
+def NUMERIC_PREFIXBlocks(Span, Recovery):
+    import builtins as B
+    if B.type(Span) is not B.range or not -1125899906842624 <= Span.start <= 1125899906842624 or not -1125899906842624 <= Span.stop <= 1125899906842624 or not -1125899906842624 <= Span.step <= 1125899906842624:
+        yield Span
+        return
+    if B.len(Recovery) > 1:
+        Recovery[1] = 2 * B.len(Span).bit_length()
+    for Position in B.range(0, B.len(Span), BLOCK_SIZE):
+        Pending = [(Span[Position:Position + BLOCK_SIZE], 0)]
+        while Pending:
+            Current, Depth = Pending.pop()
+            Recovery[0] = 0
+            yield Current
+            Cut = Recovery[0]
+            if 0 < Cut < B.len(Current):
+                if Depth:
+                    Cut = B.len(Current) // 2
+                Pending.append((Current[Cut:], Depth + 1))
+                Pending.append((Current[:Cut], Depth + 1))
+
+cdef object NUMERIC_PREFIXTry(dict Namespace, object Span, object Whole, object Binding, object Length_Binding, object Policy, object Source_Code, dict Source_Globals, list Recovery):
+    cdef bint Published = False
+    cdef Py_ssize_t Failure = -1
+    try:
+        Result = NUMERIC_PREFIXAttempt(Namespace, Span, Whole, Binding, Length_Binding, Policy, Source_Code, Source_Globals, &Published, &Failure)
+        if Result is None and Failure > 0:
+            if len(Recovery) > 1:
+                if Recovery[1] <= 0:
+                    return None
+                Recovery[1] -= 1
+            Recovery[0] = Failure
+        return Result
+    except MemoryError:
+        if Published:
+            raise
+        return None
+
+cdef object NUMERIC_PREFIXAttempt(dict Namespace, object Span, object Whole, object Binding, object Length_Binding, object Policy, object Source_Code, dict Source_Globals, bint* Published, Py_ssize_t* Failure):
+    import builtins as B
+    cdef double* Buffers[BUFFER_COUNT]
+    cdef double* Trial[BUFFER_COUNT]
+    cdef unsigned char* Changed[BUFFER_COUNT]
+    cdef unsigned char* Trial_Changed[BUFFER_COUNT]
+    cdef Py_ssize_t* Shapes[BUFFER_COUNT]
+    cdef Py_ssize_t* Strides[BUFFER_COUNT]
+    cdef Py_ssize_t Shape_Data[BUFFER_COUNT * RANK_COUNT], Stride_Data[BUFFER_COUNT * RANK_COUNT], Sizes[BUFFER_COUNT]
+    cdef double Inputs[SLOT_COUNT], Final_Inputs[SLOT_COUNT]
+    cdef long long Origins[SLOT_COUNT], Final_Origins[SLOT_COUNT], Sequence[2], Series[256], Owner
+    cdef long long* Owners[BUFFER_COUNT]
+    cdef long long* Trial_Owners[BUFFER_COUNT]
+    cdef Py_ssize_t Slot, Row, Column, Position, Height, Width, Total, Begin, End, Step, Last, Axis, Dimension
+    cdef list Matrix, Rows, Row_List, Snapshot_Row, Boxed
+    cdef bint Valid = True, Recoverable
+    cdef unsigned char Assigned[SLOT_COUNT], Prefix_Assigned[SLOT_COUNT]
+    cdef int Flags = 0, Overflow, Exceptions[256], Team[1], Workers, Mode
+    cdef bint Checks[256], Used_Parallel = False, Parallel_OK
+    cdef Py_ssize_t Count, Part, Parts, Chunk, Progress, Failures[256]
+    cdef NUMERIC_PREFIXObject* Cell
+    cdef long long Integer_Value
+    cdef bint Integer_Output, Boolean_Output, Read_Input
+    cdef FAST_PREFIXEnvironment Saved
+    cdef FAST_PREFIXException_State Prepared
+    global FAST_PREFIXNative_Elements, FAST_PREFIXParallel_Elements, FAST_PREFIXLast_Team
+    Sequence[0], Sequence[1] = 0, 1
+    _Pyceler_Dispatch_Event('Execution', 'python_fallback', 0)
+    if Binding is not B.range or Length_Binding is not B.len or B.type(Span) is not B.range:  # Do not speculate through user-defined range or length callbacks.
+        return None
+    if B.type(Length_Binding) is not FAST_PREFIXTypes.BuiltinFunctionType or Length_Binding.__self__ is not B or Length_Binding.__name__ != 'len':
+        return None
+    if not -1125899906842624 <= Span.start <= 1125899906842624 or not -1125899906842624 <= Span.stop <= 1125899906842624 or not -1125899906842624 <= Span.step <= 1125899906842624 or B.len(Span) < 2:
+        return None
+    POLICY_GUARD
+    if not FAST_PREFIXExclusive() or not FAST_PREFIXBindings(Namespace):
+        return None
+    REQUIRED_GUARDS
+    Begin, End, Step, Last, Count = Span.start, Span.stop, Span.step, Span[-1], B.len(Span)
+    Objects = [Namespace[Name] for Name in BUFFER_NAMES]
+    Original_Names = {Name: Namespace[Name] for Name in OBSERVED_NAMES if Name in Namespace}
+    Absent_Names = [Name for Name in OBSERVED_NAMES if Name not in Namespace]
+    Row_Groups, Snapshots, Structures = [], [], []
+    Identities = {}
+    Total = 0
+    for Slot in range(BUFFER_COUNT):
+        Value = Objects[Slot]
+        if not NUMERIC_PREFIXList(Value):
+            return None
+        Rows, Shape = [Value], []
+        Height = 1
+        for Axis in range(BUFFER_DIMENSIONS[Slot]):
+            if not Rows or not NUMERIC_PREFIXList(Rows[0]):
+                return None
+            Dimension = B.len(Rows[0])
+            if Dimension == 0 and not BUFFER_SHAPE_ONLY[Slot] or Dimension and Height > NUMERIC_PREFIXSize_Max // sizeof(double) // Dimension:
+                return None
+            Height *= Dimension
+            Shape.append(Dimension)
+            Next_Rows = []
+            for Value in Rows:
+                if not NUMERIC_PREFIXList(Value) or B.len(Value) != Dimension:
+                    return None
+                if not BUFFER_SHAPE_ONLY[Slot]:
+                    Identity = B.id(Value)
+                    if Identity in Identities and (Identities[Identity] or BUFFER_WRITES[Slot]):
+                        return None
+                    Identities[Identity] = BUFFER_WRITES[Slot]
+                if Axis + 1 < BUFFER_DIMENSIONS[Slot]:
+                    Structures.append((Value, list(Value)))
+                    Next_Rows.extend(Value)
+            if Axis + 1 < BUFFER_DIMENSIONS[Slot]:
+                Rows = Next_Rows
+        Sizes[Slot] = 0 if BUFFER_SHAPE_ONLY[Slot] else Height
+        Shapes[Slot], Strides[Slot] = &Shape_Data[Slot * RANK_COUNT], &Stride_Data[Slot * RANK_COUNT]
+        Position = 1
+        for Axis in range(B.len(Shape) - 1, -1, -1):
+            Shapes[Slot][Axis] = Shape[Axis]
+            Strides[Slot][Axis] = Position
+            Position *= Shape[Axis]
+        Total = min(NUMERIC_PREFIXSize_Max - Sizes[Slot], Total) + Sizes[Slot]
+        Row_Groups.append(Rows)
+        Snapshots.append(None if BUFFER_SHAPE_ONLY[Slot] else [list(Value) for Value in Rows])
+    for Slot in range(BUFFER_COUNT):
+        Buffers[Slot] = NULL
+        Trial[Slot] = NULL
+        Changed[Slot] = NULL
+        Trial_Changed[Slot] = NULL
+        Owners[Slot] = NULL
+        Trial_Owners[Slot] = NULL
+    try:
+        for Slot in range(BUFFER_COUNT):
+            if BUFFER_SHAPE_ONLY[Slot]:
+                continue
+            Buffers[Slot] = <double*>FAST_PREFIXAllocate(Sizes[Slot] * sizeof(double))
+            if BUFFER_WRITES[Slot]:
+                Trial[Slot] = <double*>FAST_PREFIXAllocate(Sizes[Slot] * sizeof(double))
+                Changed[Slot] = <unsigned char*>FAST_PREFIXAllocate(Sizes[Slot])
+                Trial_Changed[Slot] = <unsigned char*>FAST_PREFIXAllocate(Sizes[Slot])
+                if DYNAMIC_IDENTITY:
+                    Owners[Slot] = <long long*>FAST_PREFIXAllocate(Sizes[Slot] * sizeof(long long))
+                    Trial_Owners[Slot] = <long long*>FAST_PREFIXAllocate(Sizes[Slot] * sizeof(long long))
+                    if Owners[Slot] == NULL or Trial_Owners[Slot] == NULL:
+                        return None
+            else:
+                Trial[Slot] = Buffers[Slot]
+            if Buffers[Slot] == NULL or (BUFFER_WRITES[Slot] and (Trial[Slot] == NULL or Changed[Slot] == NULL or Trial_Changed[Slot] == NULL)):
+                return None
+            if BUFFER_WRITES[Slot]:
+                NUMERIC_PREFIXClear(Changed[Slot], 0, Sizes[Slot])
+                NUMERIC_PREFIXClear(Trial_Changed[Slot], 0, Sizes[Slot])
+            Position = 0
+            Read_Input = BUFFER_READS[Slot]
+            for Value in Snapshots[Slot]:
+                Row_List = Value
+                for Column in range(NUMERIC_PREFIXLength(Row_List)):
+                    Cell = NUMERIC_PREFIXGet(Row_List, Column)
+                    if Read_Input:
+                        if INTEGER_READS:
+                            if NUMERIC_PREFIXBoolean(<object>Cell):
+                                Integer_Value = 1 if <object>Cell is True else 0
+                            elif NUMERIC_PREFIXInteger(<object>Cell):
+                                Integer_Value = NUMERIC_PREFIXLong_Value(<object>Cell, &Overflow)
+                                if Overflow or Integer_Value < -1125899906842624 or Integer_Value > 1125899906842624:
+                                    return None
+                            else:
+                                return None
+                            Buffers[Slot][Position] = Integer_Value
+                        elif not NUMERIC_PREFIXFloat(<object>Cell):
+                            return None
+                        else:
+                            Buffers[Slot][Position] = <object>Cell
+                        if not FAST_PREFIXFinite(Buffers[Slot][Position]):
+                            return None
+                    else:
+                        if not (NUMERIC_PREFIXFloat(<object>Cell) or NUMERIC_PREFIXInteger(<object>Cell) or NUMERIC_PREFIXBoolean(<object>Cell) or <object>Cell is None):
+                            return None
+                        Buffers[Slot][Position] = 0.0
+                    Position += 1
+        if FAST_PREFIXGet_Environment(&Saved) != 0:
+            return None
+        try:
+            FAST_PREFIXSignals()
+            PARALLEL_COMPUTE
+            if not Used_Parallel:
+                NUMERIC_COMPUTE(Buffers, Changed, Shapes, Strides, Inputs, Origins, Owners, Sequence, Begin, Last, Step, Prefix_Assigned, &Valid, &Progress)
+            if not Valid:
+                if RECOVERABLE_FAILURES:
+                    Failure[0] = Progress
+                return None
+            for Slot in range(BUFFER_COUNT):
+                if BUFFER_WRITES[Slot]:
+                    NUMERIC_PREFIXCopy(Trial[Slot], Buffers[Slot], Sizes[Slot] * sizeof(double))
+            for Slot in range(SLOT_COUNT):
+                Final_Inputs[Slot] = Inputs[Slot]
+                Final_Origins[Slot] = Origins[Slot]
+            NUMERIC_COMPUTE(Trial, Trial_Changed, Shapes, Strides, Final_Inputs, Final_Origins, Trial_Owners, Sequence, Last, End, Step, Assigned, &Valid, &Progress)
+            Flags |= FAST_PREFIXTest_Exceptions(FAST_PREFIXAll_Exceptions)
+        finally:
+            FAST_PREFIXSet_Environment(&Saved)
+        if not Valid:
+            if RECOVERABLE_FAILURES:
+                Failure[0] = Count - 1
+            return None
+        for Slot in REQUIRED_SLOTS:
+            Valid = Valid and Assigned[Slot] != 0
+        if not Valid:
+            Recoverable = True
+            if not Used_Parallel:
+                for Slot in REQUIRED_SLOTS:
+                    if not Assigned[Slot] and not Prefix_Assigned[Slot]:
+                        Recoverable = False
+            if RECOVERABLE_FAILURES and Recoverable:
+                Failure[0] = Count - 1
+            return None
+        if Flags and FAST_PREFIXPrepare_Exceptions(Flags, &Prepared) != 0:
+            return None
+        Prepared_Outputs = []
+        Boxed_Values = {}
+        for Slot in range(BUFFER_COUNT):
+            if not BUFFER_WRITES[Slot]:
+                Prepared_Outputs.append(None)
+                continue
+            Boxed = [None] * Sizes[Slot]
+            Integer_Output, Boolean_Output = BUFFER_INTEGER_OUTPUTS[Slot], BUFFER_BOOLEAN_OUTPUTS[Slot]
+            for Position in range(Sizes[Slot]):
+                if Changed[Slot][Position]:
+                    if Boolean_Output:
+                        Value = Buffers[Slot][Position] != 0.0
+                    elif Integer_Output:
+                        Value = <long long>Buffers[Slot][Position]
+                    else:
+                        if not DYNAMIC_IDENTITY:
+                            NUMERIC_PREFIXRaw_Set(Boxed, Position, NUMERIC_PREFIXNew_Float(Buffers[Slot][Position]))
+                            continue
+                        Value = Buffers[Slot][Position]
+                    if DYNAMIC_IDENTITY:
+                        Owner = Owners[Slot][Position]
+                        if Owner > 0:
+                            Value = Boxed_Values.setdefault(Owner, Value)
+                    NUMERIC_PREFIXStore(Boxed, Position, Value)
+            Prepared_Outputs.append(Boxed)
+        Carry_Updates = {}
+        CARRY_UPDATES
+        Pool = CONSTANT_PREFIXPool(Source_Code)
+        Body = CONSTANT_PREFIXCode(NUMERIC_PREFIXBody, Pool)
+        if not FAST_PREFIXExclusive() or not FAST_PREFIXBindings(Namespace):
+            return None
+        RECHECK_BUILTINS
+        for Name, Global_Name in GLOBAL_BINDINGS:
+            if Namespace.get(Name) is not Source_Globals.get(Global_Name):
+                return None
+        for Name in Absent_Names:
+            if Name in Namespace:
+                return None
+        for Name, Value in Original_Names.items():
+            if Namespace.get(Name) is not Value:
+                return None
+        for Matrix, Rows in Structures:
+            if NUMERIC_PREFIXLength(Matrix) != NUMERIC_PREFIXLength(Rows):
+                return None
+            for Row in range(NUMERIC_PREFIXLength(Rows)):
+                if NUMERIC_PREFIXGet(Matrix, Row) != NUMERIC_PREFIXGet(Rows, Row):
+                    return None
+        for Slot in range(BUFFER_COUNT):
+            Rows = Row_Groups[Slot]
+            if BUFFER_SHAPE_ONLY[Slot]:
+                for Row_List in Rows:
+                    if NUMERIC_PREFIXLength(Row_List) != Shapes[Slot][BUFFER_DIMENSIONS[Slot] - 1]:
+                        return None
+                continue
+            for Row in range(B.len(Rows)):
+                Row_List, Snapshot_Row = Rows[Row], Snapshots[Slot][Row]
+                if NUMERIC_PREFIXLength(Row_List) != NUMERIC_PREFIXLength(Snapshot_Row):
+                    return None
+                for Column in range(NUMERIC_PREFIXLength(Row_List)):
+                    if NUMERIC_PREFIXGet(Row_List, Column) != NUMERIC_PREFIXGet(Snapshot_Row, Column):
+                        return None
+        Published[0] = True
+        for Slot in range(BUFFER_COUNT):
+            if not BUFFER_WRITES[Slot]:
+                continue
+            Boxed = Prepared_Outputs[Slot]
+            Rows = Row_Groups[Slot]
+            Position = 0
+            for Value in Rows:
+                Row_List = Value
+                for Column in range(NUMERIC_PREFIXLength(Row_List)):
+                    if Changed[Slot][Position]:
+                        NUMERIC_PREFIXPublish(Row_List, Column, Boxed, Position)
+                    Position += 1
+        Namespace.update(Carry_Updates)
+        if Flags:
+            FAST_PREFIXSet_Exceptions(&Prepared, Flags)
+        Namespace[OUTER_INDEX] = Last
+        B.exec(Body, Namespace)
+        FAST_PREFIXNative_Elements += B.len(Span) - 1
+        if Used_Parallel:
+            FAST_PREFIXParallel_Elements += Count - 1
+            FAST_PREFIXLast_Team = Team[0]
+            _Pyceler_Dispatch_Event('Execution', 'native_parallel', Team[0])
+        else:
+            FAST_PREFIXLast_Team = 1
+            _Pyceler_Dispatch_Event('Execution', 'native_serial', 1)
+        Result = []
+        for Name in WRITTEN_NAMES:
+            Result.append(Namespace[Name])
+        return tuple(Result)
+    finally:
+        for Slot in range(BUFFER_COUNT):
+            FAST_PREFIXFree(Buffers[Slot])
+            if BUFFER_WRITES[Slot]:
+                FAST_PREFIXFree(Trial[Slot])
+            FAST_PREFIXFree(Changed[Slot])
+            FAST_PREFIXFree(Trial_Changed[Slot])
+            FAST_PREFIXFree(Owners[Slot])
+            FAST_PREFIXFree(Trial_Owners[Slot])

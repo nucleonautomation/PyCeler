@@ -1,6 +1,6 @@
 import math
 from math import erf as Error_Function, erfc as Complementary_Function
-
+# Test support/workload for platform-qualified erf/erfc behavior.
 def Map_erf(Source, Output):
     for Index in range(len(Source)):
         Output[Index] = math.erf(Source[Index])

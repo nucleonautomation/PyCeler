@@ -1,6 +1,6 @@
 from dataclasses import replace as _Diagnostic_Replace
 from .Loop_Detector import _Loop_Diagnostic
-
+# Explain unresolved bounds, overflow and callback boundaries without claiming native execution.
 cdef object _Diagnostic(object Node, str Code, str Message, str Suggestion, str Severity="unsupported"):
     return _Loop_Diagnostic(Code=Code, Line=Node.lineno, Column=Node.col_offset + 1, End_Line=Node.end_lineno,
                             End_Column=Node.end_col_offset + 1, Severity=Severity, Message=Message, Suggestion=Suggestion)

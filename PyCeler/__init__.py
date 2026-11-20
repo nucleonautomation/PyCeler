@@ -18,7 +18,7 @@ def _Built_Package_Path():
     globals()["__build_id__"] = Report["Build_Id"]
     globals()["__source_fingerprint__"] = Report["Source_Fingerprint"]
     return Package
-
+# Load the verified development build or installed native package and expose the public API.
 _Built_Path = _Built_Package_Path()
 if _Built_Path is not None:
     __path__[:] = [str(_Built_Path)]
@@ -27,5 +27,5 @@ del _Built_Path
 from .Loop_Detector import Loop_Finding
 from .Engine import Analyze, Convert, Compile
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 __all__ = ["Analyze", "Convert", "Compile", "Loop_Finding"]

@@ -1,5 +1,5 @@
 from pathlib import Path
-
+# Test support/workload for survey source.
 def _Separable(Vertical, Horizontal):
     return tuple(tuple(Y * X for X in Horizontal) for Y in Vertical)
 

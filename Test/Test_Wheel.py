@@ -10,12 +10,12 @@ import Compile
 import PyCeler
 from Test.Verify_Wheel import _Verify
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for installed-package contents and isolated native loading.
 class Native_Wheel(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
     def test_Deterministic_Metadata_And_Installed_Pipeline(self):
-        with Temporary_Directory(prefix="Wheel_Regression_", dir=self._Root / "Test_Run") as Folder:
+        with Temporary_Directory(prefix="Wheel_Regression_", dir=self._Root / "Test_Run") as Folder:  # Keep generated sources and binaries outside the maintained fixture tree.
             Work = Path(Folder)
             Library = Path(PyCeler.__path__[0])
             Wheel = Compile.Build_Wheel(Work / "First", Library_Directory=Library)

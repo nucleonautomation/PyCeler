@@ -1,6 +1,6 @@
 from libc.stdint cimport int64_t as _Pyceler_Int, INT64_MIN as _Pyceler_Min, INT64_MAX as _Pyceler_Max
 from cython cimport cdivision as _Pyceler_Cdivision
-
+# Provide checked native integer arithmetic and polling; overflow returns control to Python.
 cdef extern from "Python.h":
     int _Pyceler_Signals "PyErr_CheckSignals"() except -1
 

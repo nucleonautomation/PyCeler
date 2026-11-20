@@ -5,7 +5,7 @@ import re
 import shutil
 import tokenize
 from pathlib import Path
-
+# Resolve source/dependency inputs and stage compilation without modifying user originals.
 def _Source_Inputs(Source_Path):
     Source = Path(Source_Path).resolve(strict=True)
     if Source.is_file():
@@ -145,7 +145,7 @@ def _Stage_Dependencies(Root, Files, Staging):
         Supporting.append(Relative)
     return sorted(Supporting)
 
-def _Stage_Compile_Sources(Root, Files, Staging):
+def _Stage_Compile_Sources(Root, Files, Staging):  # Stage dependency files without modifying the caller's editable source tree.
     Supporting = _Stage_Dependencies(Root, Files, Staging)
     Paths = []
     for File in Files:

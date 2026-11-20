@@ -1,7 +1,7 @@
 import importlib.util
 import struct
 import Scalar_Strides as Native
-
+# Isolated verification for scalar strides.
 Spec = importlib.util.spec_from_file_location("Original_Strides", Reference_Path)
 Original = importlib.util.module_from_spec(Spec)
 Spec.loader.exec_module(Original)

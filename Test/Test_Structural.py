@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from PyCeler import Analyze, Compile, Convert
-
+# Regression checks for dependency-safe structural loop rewrites.
 class Structural_Optimization(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
     _Source = _Root / "Test" / "Structural_Loops.py"
@@ -60,7 +60,7 @@ class Structural_Optimization(unittest.TestCase):
 
     def test_Native_Structures_And_Fallbacks(self):
         for Parallel in (False, True):
-            Binary = Compile(self._Source, self._Folder / str(Parallel), Select=False, OpenMP=Parallel, Elide_Temporaries=True)
+            Binary = Compile(self._Source, self._Folder / str(Parallel), Select=False, OpenMP=Parallel, Elide_Temporaries=True)  # Build a real extension; a static finding alone does not prove native execution.
             Program = (self._Root / "Test" / "Structural_Probe.py").read_text(encoding="utf-8")
             Command = "import sys\nsys.path.insert(0, sys.argv[1])\nReference_Path = " + repr(str(self._Source)) + "\n" + Program
             Process = subprocess.run([sys.executable, "-I", "-B", "-c", Command, str(Binary.parent)], text=True, capture_output=True)

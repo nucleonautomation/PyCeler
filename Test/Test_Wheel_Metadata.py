@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 import Compile
-
+# Regression checks for installed-package contents and isolated native loading.
 class Wheel_Metadata(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
@@ -23,7 +23,7 @@ class Wheel_Metadata(unittest.TestCase):
             Work = Path(Folder)
             Package = Work / "Custom" / "PyCeler"
             Package.mkdir(parents=True)
-            (Package / "__init__.py").write_text("__version__ = '0.4.0'\n", encoding="utf-8")
+            (Package / "__init__.py").write_text("__version__ = '0.5.0'\n", encoding="utf-8")
             Report = dict(Target=Compile._Target("native"), Mode="regular", Python_Version="3.14", Files={"PyCeler/__init__.py": "mock"},
                           Build_Environment=dict(Mode="regular", Python="3.14.1 free-threading build", ABI_Tag="cp314t", GIL_Disabled=True))
             Verify = Mock(return_value=Report)
@@ -35,9 +35,9 @@ class Wheel_Metadata(unittest.TestCase):
             self.assertEqual(Verify.call_count, 2)
             self.assertEqual(Verify.call_args.args[1], Package)
             with zipfile.ZipFile(First) as Archive:
-                Text = Archive.read("pyceler-0.4.0.dist-info/WHEEL").decode("utf-8")
+                Text = Archive.read("pyceler-0.5.0.dist-info/WHEEL").decode("utf-8")
                 self.assertIn("Tag: cp314-cp314t-", Text)
-                Metadata = Archive.read("pyceler-0.4.0.dist-info/METADATA").decode("utf-8")
+                Metadata = Archive.read("pyceler-0.5.0.dist-info/METADATA").decode("utf-8")
                 self.assertIn("Description-Content-Type: text/markdown\n", Metadata)
                 self.assertIn("Project-URL: Source, https://github.com/nucleonautomation/PyCeler\n", Metadata)
                 self.assertTrue(Metadata.endswith((self._Root / "README.md").read_text(encoding="utf-8")))

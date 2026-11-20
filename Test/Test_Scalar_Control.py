@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 from PyCeler import Analyze, Compile, Convert
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for break/continue/else and scalar control flow.
 class Scalar_Control(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
     _Fixture = _Root / "Test" / "Scalar_Control.py"
@@ -38,7 +38,7 @@ class Scalar_Control(unittest.TestCase):
         self.assertIn("_Pyceler_Power", Text)
 
     def test_Native_Control_And_Fallbacks(self):
-        Binary = Compile(self._Fixture, self._Folder / "Native", Select=False, OpenMP=False)
+        Binary = Compile(self._Fixture, self._Folder / "Native", Select=False, OpenMP=False)  # Build a real extension; a static finding alone does not prove native execution.
         Result = subprocess.run([sys.executable, "-I", "-B", str(self._Root / "Test" / "Scalar_Control_Probe.py"), str(Binary), str(self._Fixture)],
                                 capture_output=True, text=True, timeout=120)
         self.assertEqual(Result.returncode, 0, Result.stdout + Result.stderr)

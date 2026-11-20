@@ -1,0 +1,3416 @@
+{
+  "Format": "PyCeler examples 1",
+  "Version": "0.4.0",
+  "Generation": {
+    "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+    "Select": false,
+    "OpenMP": true,
+    "Status": "generated"
+  },
+  "Notes": [
+    "Python inputs are ordinary Python. Some fixtures intentionally exercise retained Python behavior.",
+    "Generated candidates are unmeasured unless explicitly regenerated with --measured.",
+    "Full benchmark sizes are preserved; generation and syntax validation do not execute them.",
+    "Loops and Benchmarks retain only Python sources. Bulk generated outputs were removed after qualification; their hashes and validation records are historical. Generate.py writes new outputs under ignored Test_Run/Examples."
+  ],
+  "Examples": [
+    {
+      "Name": "Integer_Branches",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/Integer_Branches.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/Integer_Branches.pyx",
+      "Origin": "Test_Run/Benchmark_Diagnosis_20261117/Original.py",
+      "Factory": null,
+      "Description": "Original integer-heavy nested loops, branches and bitwise checksum.",
+      "Python_SHA256": "de2ed9310ada967b99c401b7bd9d8909fa799254e8c86f0042094a50081e7403",
+      "Functions": [],
+      "Imports": [
+        "import time",
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "4032940b054bcd561aaf65c34906b8d178b699d1623057998ff9103e0f1fd421",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Integer_Eligibility",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/Integer_Eligibility.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/Integer_Eligibility.pyx",
+      "Origin": "Test_Run/Scalar_Eligibility_20261117/Benchmark.py",
+      "Factory": null,
+      "Description": "Preserved integer eligibility reproduction with the original workload size.",
+      "Python_SHA256": "16bc33433a3ed3a4d64673ee3a7920d43a603ea23c4c90f643b53d6bd227d47d",
+      "Functions": [],
+      "Imports": [
+        "import time",
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "4032940b054bcd561aaf65c34906b8d178b699d1623057998ff9103e0f1fd421",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Scalar_Math_Simulation",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/Scalar_Math_Simulation.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/Scalar_Math_Simulation.pyx",
+      "Origin": "Test_Run/Scalar_Math_20261117/Benchmark.py",
+      "Factory": null,
+      "Description": "Nested scalar math simulation with ordered energy and checksum updates.",
+      "Python_SHA256": "96cbd298faa7bfdc440702c03399352201fa57e754b6ac33b39e2f2843904ad2",
+      "Functions": [],
+      "Imports": [
+        "import time",
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "c05f811128f1ab6a785428d9057f70f90ef3be15de54172b5dbe750f0a3943b3",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "List_Grid_Simulation",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/List_Grid_Simulation.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/List_Grid_Simulation.pyx",
+      "Origin": "Test_Run/List_Grid_20261117/Benchmark.py",
+      "Factory": null,
+      "Description": "Repeated list-grid updates with separate current and next state.",
+      "Python_SHA256": "244d3535dc255241d2e131839bf36c48bc8fdddb9001f385633d0271a51acfad",
+      "Functions": [],
+      "Imports": [
+        "import time",
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "214018e2ea5d5d4766922aa93355cbf03a64b8e6082797ab9298ca2897f61be9",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Monte_Carlo",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/Monte_Carlo.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/Monte_Carlo.pyx",
+      "Origin": "Test_Run/Benchmark_Six_20261117/Original/Case1.py",
+      "Factory": null,
+      "Description": "Monte Carlo option-payoff workload with ordered random draws.",
+      "Python_SHA256": "51ac51c2d5b5f14e86c4d8da688c80bc669074aaf220866f2f8e0b4030d26621",
+      "Functions": [],
+      "Imports": [
+        "import time",
+        "import math",
+        "import random"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "67b223477256c1d04cf4f3b02a14daa2f95b551516fc457ea94c1aac9370d63d",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Diffusion_3D",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/Diffusion_3D.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/Diffusion_3D.pyx",
+      "Origin": "Test_Run/Benchmark_Six_20261117/Original/Case2.py",
+      "Factory": null,
+      "Description": "Three-dimensional list-grid diffusion at the original benchmark size.",
+      "Python_SHA256": "759a307ae4f642c7e91ef47d2bcd5f339628f7f456150ae28482fbcfac0c44f2",
+      "Functions": [],
+      "Imports": [
+        "import time",
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "fbd6d38e6f3664d6956f40ee16200222ae31e20a1645fc5c9c23f28a7515573f",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Cellular_Automaton",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/Cellular_Automaton.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/Cellular_Automaton.pyx",
+      "Origin": "Test_Run/Benchmark_Six_20261117/Original/Case3.py",
+      "Factory": null,
+      "Description": "Repeated cellular automaton generations on a nested list grid.",
+      "Python_SHA256": "c743b000e732b9156c6967fba9564a28cc1a1e2df5aaaa28d1f59b6b2e01b7e7",
+      "Functions": [],
+      "Imports": [
+        "import time",
+        "import random"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "c46782b77576bd5c65f26511e13ef84239bc96758a967cd2e1b187f6c5beed19",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Matrix_Multiplication",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/Matrix_Multiplication.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/Matrix_Multiplication.pyx",
+      "Origin": "Test_Run/Benchmark_Six_20261117/Original/Case4.py",
+      "Factory": null,
+      "Description": "Ordinary triple-loop list matrix multiplication.",
+      "Python_SHA256": "e276b45fd6cdd98d513866c9486f18dc2764ff9e3481dee8f949fcf6eec44af1",
+      "Functions": [],
+      "Imports": [
+        "import time",
+        "import random"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "75042153329729995f2681166c0f29563c9e25860d15b42bb113d6f3e1acf5b7",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Ray_Tracing",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/Ray_Tracing.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/Ray_Tracing.pyx",
+      "Origin": "Test_Run/Benchmark_Six_20261117/Original/Case5.py",
+      "Factory": null,
+      "Description": "Ray/sphere intersections, lighting and pixel-result construction.",
+      "Python_SHA256": "88f1362e7c2c98209f1505d125bef08c6f39af4a02b4c09cb6d66087b0ba6176",
+      "Functions": [],
+      "Imports": [
+        "import time",
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "adac3785da6c8d4882789b2d6753c989c4911efb05b8f6d1b34306ef1f7183c6",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Segmented_Primes",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/Segmented_Primes.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/Segmented_Primes.pyx",
+      "Origin": "Test_Run/Benchmark_Six_20261117/Original/Case6.py",
+      "Factory": null,
+      "Description": "Segmented prime sieve with dependent marking and checksum accumulation.",
+      "Python_SHA256": "9239dabe43ec50e65260265aa82cb06f9b69edf4be880189b78f764a2e1c22b6",
+      "Functions": [],
+      "Imports": [
+        "import time",
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "0dad1db36d16f700e5bab4be899a9458873c64baacebe5bae8fb8fa36a7b34ab",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Numerical_Simulation",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/Numerical_Simulation.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/Numerical_Simulation.pyx",
+      "Origin": "Test_Run/Generalization_20261118/Originals/Case1.py",
+      "Factory": null,
+      "Description": "Preserved numerical simulation used for generalization checks.",
+      "Python_SHA256": "88d3b096678ef19bf5f1af77ff4e5e4322503f84a91edf2de55d5181035e1279",
+      "Functions": [
+        "numerical_simulation"
+      ],
+      "Imports": [
+        "import math",
+        "import random",
+        "import time"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "34ed1ac421be432f7952407d340b9be1a88414e244bff76dfed4e6b33da8a309",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Particle_Simulation",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/Particle_Simulation.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/Particle_Simulation.pyx",
+      "Origin": "Test_Run/Generalization_20261118/Originals/Case2.py",
+      "Factory": null,
+      "Description": "Preserved particle simulation used for generalization checks.",
+      "Python_SHA256": "e2650bdc872175583e5d9e902ae9192ccb153847dc1d7a75f2297432865782a5",
+      "Functions": [
+        "particle_simulation"
+      ],
+      "Imports": [
+        "import math",
+        "import random",
+        "import time"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "5d613c4d54e1a1eb79ca21fd61374725421ebc14f226529a2923fcc6d2d09a49",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Mixed_Workload",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/Mixed_Workload.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/Mixed_Workload.pyx",
+      "Origin": "Test_Run/Mega_20261117/B.py",
+      "Factory": null,
+      "Description": "Large mixed image, geometry, simulation and metrics benchmark.",
+      "Python_SHA256": "a8980d85a5fabeb56ce00059312af2102e7c73b53ae16244111a38a60d18b7c8",
+      "Functions": [
+        "generate_sensor_frame",
+        "process_image",
+        "generate_point_cloud",
+        "process_geometry",
+        "numerical_simulation",
+        "process_metrics"
+      ],
+      "Imports": [
+        "import time",
+        "import math",
+        "import random",
+        "import numpy as np",
+        "import cv2",
+        "import open3d as o3d",
+        "import pandas as pd",
+        "from scipy.ndimage import gaussian_filter, sobel",
+        "from scipy.spatial import cKDTree"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "9853af83ea7ee2fc1c7afdea5c2e8746c0664b5d371a9c61ee8daed8f9722a58",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "NBody",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/NBody.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/NBody.pyx",
+      "Origin": "Test_Run/NBody_Performance_20261119/B.py",
+      "Factory": null,
+      "Description": "N-body forces, integration, energies, momentum and spatial analysis.",
+      "Python_SHA256": "7b4a7d8f7bc05ffa24801bc622172d55a2aafb8466151f5daa2797758d1dd229",
+      "Functions": [
+        "calculate_forces",
+        "integrate_particles",
+        "calculate_kinetic_energy",
+        "calculate_potential_energy",
+        "calculate_momentum",
+        "spatial_analysis"
+      ],
+      "Imports": [
+        "import time",
+        "import math",
+        "import numpy as np",
+        "import random"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "ef6b3e0ff77763cbe75b97746dde57953ff343ebeb5f57d850933265224bd258",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Fluid",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/Fluid.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/Fluid.pyx",
+      "Origin": "Test_Run/Fluid_Performance_20261119/B.py",
+      "Factory": null,
+      "Description": "Fluid-like grid pipeline with stencils, scalar powers and diagnostics.",
+      "Python_SHA256": "e59461276fd0a4e1a80fdae4ac7969787d65d065e44953508b5e545c36c9679c",
+      "Functions": [
+        "calculate_laplacian",
+        "update_velocity",
+        "update_density",
+        "update_temperature",
+        "update_pressure",
+        "calculate_energy",
+        "calculate_vorticity"
+      ],
+      "Imports": [
+        "import time",
+        "import math",
+        "import random",
+        "import numpy as np"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "ceb70f3a80ab5568b0887b9723e82fbe07f4e0c0d5591282b7f34fb9292c0bf4",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Sparse_Graph",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/Sparse_Graph.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/Sparse_Graph.pyx",
+      "Origin": "Test_Run/Graph_Performance_20261119/B.py",
+      "Factory": null,
+      "Description": "Sparse graph pipeline with indirect indices, reductions and label propagation.",
+      "Python_SHA256": "d6914b08540a6ad55803eeb25e1b323e7077a5d5392c1fc4579d583cc42c7c70",
+      "Functions": [
+        "graph_propagation",
+        "calculate_centrality",
+        "aggregate_features",
+        "label_propagation",
+        "random_walk",
+        "neighborhood_analysis",
+        "connectivity_analysis",
+        "transform_features",
+        "calculate_graph_checksum"
+      ],
+      "Imports": [
+        "import time",
+        "import math",
+        "import random",
+        "import numpy as np"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "60c10e25005e5f562c6d39cc9e6fc6d252c03c69582abc3c27dcd951b4d2a1fb",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Image_Pipeline",
+      "Category": "Benchmarks",
+      "Python": "Benchmarks/Image_Pipeline.py",
+      "Cython": "../Test_Run/Examples/Benchmarks/Image_Pipeline.pyx",
+      "Origin": "Test_Run/Image_Performance_20261119/B.py",
+      "Factory": null,
+      "Description": "Image pipeline with clamped convolution, histograms, pyramid reductions and median filtering.",
+      "Python_SHA256": "90b896e77c0683504d9bd6bd9db2ae7984f91fd8b3a83658b85dc651892b9d1a",
+      "Functions": [
+        "grayscale",
+        "gaussian_blur",
+        "sharpen",
+        "sobel",
+        "median_filter",
+        "adaptive_threshold",
+        "histogram",
+        "equalize",
+        "depth_processing",
+        "image_pyramid",
+        "tile_analysis",
+        "classify_edges",
+        "color_analysis"
+      ],
+      "Imports": [
+        "import time",
+        "import math",
+        "import random",
+        "import numpy as np"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "149a2999f4295736ce16823b586e92d0d26af34cd66d06247b4c83162176bffc",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "ABI_Loops",
+      "Category": "Loops",
+      "Python": "Loops/ABI_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/ABI_Loops.pyx",
+      "Origin": "Test/ABI_Loops.py",
+      "Factory": null,
+      "Description": "Focused abi loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "28960d34dc0984f9b0932989ce6b2a95d3682112d4fbe2ada2ba3af5640ecd4b",
+      "Functions": [
+        "Count",
+        "Clear"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "a6ac12c258002eb7b20b10386aed1eb315c02816c1cb214505cb57b11a7ea543",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Affine_Alias_Cases",
+      "Category": "Loops",
+      "Python": "Loops/Affine_Alias_Cases.py",
+      "Cython": "../Test_Run/Examples/Loops/Affine_Alias_Cases.pyx",
+      "Origin": "Test/Affine_Alias_Cases.py",
+      "Factory": null,
+      "Description": "Focused affine alias cases workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "d48f2c2b811908f2aa86412caf871316540f1fe524b69261bc241676096e4c33",
+      "Functions": [
+        "Source"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "b4f2b1b18ffd0645e1b7e2c2595ecb94e96fa7ea9c9a4a1ee87407aef4c54ed8",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Array_Extrema_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Array_Extrema_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Array_Extrema_Loops.pyx",
+      "Origin": "Test/Array_Extrema_Loops.py",
+      "Factory": null,
+      "Description": "Focused array extrema loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "eff561e68df6b97122028202a6b30c7aef369d96ecb2e395bd75516d78c64c1d",
+      "Functions": [
+        "Clamp",
+        "Extrema",
+        "Convolution",
+        "Binned",
+        "Scaled_Window",
+        "Signed_Division",
+        "Borrowed",
+        "Repeated_Scales"
+      ],
+      "Imports": [
+        "import numpy as N"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "338a4276f4fc6629354d84ee5ae82e5e097a59d76963a1b266de30cce5f9fc32",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Array_Power_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Array_Power_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Array_Power_Loops.pyx",
+      "Origin": "Test/Array_Power_Loops.py",
+      "Factory": null,
+      "Description": "Focused array power loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "604afb81279a5e37d6f3a67e68aaebbac2e535a080c8af267a73810f69a2c341",
+      "Functions": [
+        "Square",
+        "Inverse",
+        "Transform",
+        "Helper",
+        "Ordered",
+        "Random_Power"
+      ],
+      "Imports": [
+        "import math",
+        "import random"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "1e43000f6601d3fd72b81acf238c1b8619faa895d2e5fa6e5ed50c28cda0b2a0",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Array_Random_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Array_Random_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Array_Random_Loops.pyx",
+      "Origin": "Test/Array_Random_Loops.py",
+      "Factory": null,
+      "Description": "Focused array random loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "8a0e1ac54d3293859bbf9a052615a1fe145c8c27f927ebae9b7b8d2b6d7de755",
+      "Functions": [
+        "Random_Image",
+        "Random_Pairs",
+        "Random_Domain",
+        "Random_Variable",
+        "Random_Balanced",
+        "Random_Condition",
+        "Random_Branch",
+        "Random_Nested",
+        "Random_Rows",
+        "Random_Branch_Error"
+      ],
+      "Imports": [
+        "import math",
+        "import random"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "8548774dd984a89d121b210ce0a00902290fff91d9f04636fa882611e8f33d92",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Array_Region_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Array_Region_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Array_Region_Loops.pyx",
+      "Origin": "Test/Array_Region_Loops.py",
+      "Factory": null,
+      "Description": "Focused array region loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "cca940b93fe750454bc863b76f0082db8f26da65a43814579db729b037621bbf",
+      "Functions": [
+        "Stencil",
+        "Volume_Four",
+        "Row_Sum",
+        "Strided",
+        "Neighbor_Recurrence",
+        "Cast_Outputs",
+        "Volume_Six",
+        "Piecewise_Sum"
+      ],
+      "Imports": [
+        "import math",
+        "import numpy as np"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "f0c938e1728a3fb0bcc2628abdd46d46a1c0b0aeafb31a6b8b41669d232cdec9",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Branch_Bindings",
+      "Category": "Loops",
+      "Python": "Loops/Branch_Bindings.py",
+      "Cython": "../Test_Run/Examples/Loops/Branch_Bindings.pyx",
+      "Origin": "Test/Branch_Bindings.py",
+      "Factory": null,
+      "Description": "Focused branch bindings workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "ec21769fb47764bf02b0ab2b2dd86f730783d2dee30a579ce79f4c976040a61b",
+      "Functions": [
+        "Choose",
+        "Nested",
+        "Annotated",
+        "Partial",
+        "Annotation_Only",
+        "Walrus_Only",
+        "Returning_Branch"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": true,
+        "Expected_Translation_Failure": false,
+        "Native_Smoke": {
+          "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+          "Report": "Test_Run/Direct_Scope_Fix_20261119/Qualification.json",
+          "Result": "{\"Comparisons\": 160, \"Native_Entries\": 32, \"Actual_Team\": 2}"
+        }
+      },
+      "Cython_SHA256": "8a2a77f79c07cabfc898f8d084a66333927135a6cfa408e67ab3671b284003e9",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Resolved_Limitation": {
+        "Description": "Annotation-only locals and a name bound only by a dead walrus expression are rejected before runtime.",
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450"
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Classic_Dependencies",
+      "Category": "Loops",
+      "Python": "Loops/Classic_Dependencies.py",
+      "Cython": "../Test_Run/Examples/Loops/Classic_Dependencies.pyx",
+      "Origin": "Test/Classic_Dependencies.py",
+      "Factory": null,
+      "Description": "Focused classic dependencies workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "be56e11d3b65f6e378e0192bca45faf81d42b0b8d8c8b1c0aa4e3a9c7759181e",
+      "Functions": [
+        "Scatter_Best",
+        "Ordered_Moments",
+        "Median_Depth"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "9d42c919487259d773ed2c9c7be350702d1a73644621d87f5edb87177ebfcd51",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Classic_Transport_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Classic_Transport_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Classic_Transport_Loops.pyx",
+      "Origin": "Test/Classic_Transport_Loops.py",
+      "Factory": null,
+      "Description": "Focused classic transport loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "f6a390dc8c77560579fd0f39c9415261ef8cbcfb82203182a7599ecceeeabbaf",
+      "Functions": [
+        "Choose_Labels",
+        "Evaluate_Models",
+        "Count_Residuals",
+        "Score_Stripes",
+        "Copy_Rows",
+        "Load_Fragment",
+        "Pump",
+        "Read_Exact",
+        "Read_Frame",
+        "Visible_Counter",
+        "Partial_Count"
+      ],
+      "Imports": [
+        "import socket"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "7084758b53b63d86cc3728aabc1f687e266a2c8b9627014576d2c2b15671f8ce",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Complete_Array_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Complete_Array_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Complete_Array_Loops.pyx",
+      "Origin": "Test/Complete_Array_Loops.py",
+      "Factory": null,
+      "Description": "Focused complete array loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "38eb35a08c7413f8f3f7271b2b2affebab1e241330e1ed66c1581ad74dee1f2f",
+      "Functions": [
+        "Interior",
+        "Reverse",
+        "Domain"
+      ],
+      "Imports": [
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "60b50f6a61b704ebf83de694632144736cc3093dd649d8922934c4b3417aa7c7",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Coverage_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Coverage_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Coverage_Loops.pyx",
+      "Origin": "Test/Coverage_Loops.py",
+      "Factory": null,
+      "Description": "Focused coverage loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "c8ee435330710c4a9be7a7b3fd0cb0622334260c2422009f9cab9d6b3020ac4c",
+      "Functions": [
+        "Independent_Map",
+        "Dependent_Map",
+        "Alias_Map",
+        "Math_Map",
+        "Callback_Boundary",
+        "Callback_In_Loop",
+        "Scalar_Control",
+        "Dynamic_Stride",
+        "Dependent_While",
+        "Enumerated",
+        "Zipped",
+        "Comprehensions",
+        "Early_Return",
+        "Exception_Boundary",
+        "Three_Dimensional",
+        "Four_Dimensional",
+        "Mixed_Libraries",
+        "Ordered_Receive",
+        "Generator_Suspension"
+      ],
+      "Imports": [
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "f1d129a979fcfd6a3fb3335d20a2789148fd86623341d774640b66ac854691c9",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Diagnostic_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Diagnostic_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Diagnostic_Loops.pyx",
+      "Origin": "Test/Diagnostic_Loops.py",
+      "Factory": null,
+      "Description": "Focused diagnostic loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "45f9f98f0662a3002ab163a6e31ca4f9975c020f41ccc85877bb0df4a4310c59",
+      "Functions": [
+        "Rejected_With_Calls"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "fc6c8551a53dfca0f4b03fdeeeca97b00e64e877e3e9cf2cc105880597d8a3b8",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Dynamic_Scalar_Strides",
+      "Category": "Loops",
+      "Python": "Loops/Dynamic_Scalar_Strides.py",
+      "Cython": "../Test_Run/Examples/Loops/Dynamic_Scalar_Strides.pyx",
+      "Origin": "Test/Dynamic_Scalar_Strides.py",
+      "Factory": null,
+      "Description": "Focused dynamic scalar strides workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "9febf5b1162a94714afdcf0d34e2870300719895825749976ddd4141653392e0",
+      "Functions": [
+        "Mixed",
+        "Control",
+        "Fraction",
+        "Header",
+        "Unbound",
+        "Partial"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "aeface09338b26ddb741371107d0ae2b2fe2ea9bcdf1c3be28f5a9f7ff7162fe",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Expanded_Numeric_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Expanded_Numeric_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Expanded_Numeric_Loops.pyx",
+      "Origin": "Test/Expanded_Numeric_Loops.py",
+      "Factory": null,
+      "Description": "Focused expanded numeric loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "da6db8272eea7f50eb1d5c7b2a6f55a4a71bd7affe2c14cb4c7434b43977f2b6",
+      "Functions": [
+        "Volume",
+        "Initialize",
+        "Neighbors",
+        "Mark",
+        "Count_Flags",
+        "Product",
+        "Scatter",
+        "Hypercube"
+      ],
+      "Imports": [
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "7a0b0a0af22ed613da40b513e924eb8e0e5717abfcef1215ae03013ab7dffbd6",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Fast_Binary_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Fast_Binary_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Fast_Binary_Loops.pyx",
+      "Origin": "Test/Fast_Binary_Loops.py",
+      "Factory": null,
+      "Description": "Focused fast binary loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "402f48347b51270aca038f98e1cf57ad4996e1e9d837003c89c9f6462bd1f017",
+      "Functions": [
+        "Map_Copysign",
+        "Map_Fmod",
+        "Aliased",
+        "Composed",
+        "Ordered_Arguments",
+        "Nested_Zero",
+        "Integer_Zero_Sign",
+        "Float_Negative_Zero_Sign",
+        "Boolean_Zero_Sign",
+        "Same_Input",
+        "Deferred_Atan2",
+        "Deferred_Pow",
+        "Deferred_Degrees",
+        "Deferred_Radians"
+      ],
+      "Imports": [
+        "import math",
+        "from math import copysign as Copy_Sign",
+        "from math import fmod as Float_Remainder"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "54fb1370cf3c4278e349b614ab8b3f910021fb643c848c24188133b81ee017c9",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Fast_Erf_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Fast_Erf_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Fast_Erf_Loops.pyx",
+      "Origin": "Test/Fast_Erf_Loops.py",
+      "Factory": null,
+      "Description": "Focused fast erf loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "a43e5c5185e66b9107576afee26fbece95f95da6c093131f1ebbf20437e1f8cf",
+      "Functions": [
+        "Map_erf",
+        "Map_erfc",
+        "Aliased_erf",
+        "Aliased_erfc",
+        "Composed",
+        "Nested",
+        "Domain_erf",
+        "Domain_erfc",
+        "Overflow_erfc"
+      ],
+      "Imports": [
+        "import math",
+        "from math import erf as Error_Function, erfc as Complementary_Function"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "d712e662f97262742d1070115ee25946a90668f457ff31dc24fdc0f9a088f20c",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Fast_Math_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Fast_Math_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Fast_Math_Loops.pyx",
+      "Origin": "Test/Fast_Math_Loops.py",
+      "Factory": null,
+      "Description": "Focused fast math loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "6fc56caed2d1cf518e1426f184b487f7ec5f170781510e28a62f1421d346bb47",
+      "Functions": [
+        "Map_acos",
+        "Map_acosh",
+        "Map_asin",
+        "Map_asinh",
+        "Map_atan",
+        "Map_atanh",
+        "Map_cbrt",
+        "Map_cos",
+        "Map_cosh",
+        "Map_exp",
+        "Map_exp2",
+        "Map_expm1",
+        "Map_fabs",
+        "Map_isfinite",
+        "Map_isinf",
+        "Map_isnan",
+        "Map_log",
+        "Map_log10",
+        "Map_log1p",
+        "Map_sin",
+        "Map_sinh",
+        "Map_sqrt",
+        "Map_tan",
+        "Map_tanh",
+        "Composed",
+        "Aliased"
+      ],
+      "Imports": [
+        "import math as M",
+        "from math import sin as Wave"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "6f77fe21b200d027fc426ef832f62eafa7cb91412dbd1fd025d320046097e60f",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Generalization_Regions",
+      "Category": "Loops",
+      "Python": "Loops/Generalization_Regions.py",
+      "Cython": "../Test_Run/Examples/Loops/Generalization_Regions.pyx",
+      "Origin": "Test/Generalization_Cases.py",
+      "Factory": "Source",
+      "Description": "Focused generalization regions workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "1e80bf15ca16d295578b3e627f718e72f6c807c74d5afb9b4dae2c3d66fcc3a6",
+      "Functions": [
+        "Nested",
+        "Nested_While",
+        "Repeated_Index",
+        "Conditional_Constant",
+        "Shared_Inner",
+        "Integer_Absolute",
+        "Interleaved",
+        "Columns",
+        "Dependent",
+        "Direct_Absolute",
+        "Conditional_Expression",
+        "Many_Slots_List",
+        "Many_Slots_Array",
+        "Many_Buffers"
+      ],
+      "Imports": [
+        "import math",
+        "import numpy as np"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "d6e3038fe4262df6f29db5156edce4336ab7c42ceb058a7294e430699d5a8873",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Generated_Scalar",
+      "Category": "Loops",
+      "Python": "Loops/Generated_Scalar.py",
+      "Cython": "../Test_Run/Examples/Loops/Generated_Scalar.pyx",
+      "Origin": "Test/Generated_Scalar_Programs.py",
+      "Factory": "_Programs",
+      "Description": "Focused generated scalar workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "ee8848ccc37c776c4c35306bf36de701530c98a85c6aa0778f0ec4812e2bdbf0",
+      "Functions": [
+        "Sum_0",
+        "Sum_1",
+        "Sum_2",
+        "Sum_3",
+        "Sum_4",
+        "Sum_5",
+        "Sum_6",
+        "Sum_7",
+        "Sum_8",
+        "Sum_9",
+        "Sum_10",
+        "Sum_11",
+        "Sum_12",
+        "Sum_13",
+        "Sum_14",
+        "Sum_15",
+        "Sum_16",
+        "Sum_17",
+        "Sum_18",
+        "Sum_19",
+        "Sum_20",
+        "Sum_21",
+        "Sum_22",
+        "Sum_23",
+        "Ordered_0",
+        "Ordered_1",
+        "Ordered_2",
+        "Ordered_3",
+        "Ordered_4",
+        "Ordered_5",
+        "Ordered_6",
+        "Ordered_7",
+        "Ordered_8",
+        "Ordered_9",
+        "Ordered_10",
+        "Ordered_11",
+        "Aliases_0",
+        "Aliases_1",
+        "Aliases_2",
+        "Aliases_3",
+        "Aliases_4",
+        "Aliases_5",
+        "Aliases_6",
+        "Aliases_7",
+        "Aliases_8",
+        "Aliases_9",
+        "Aliases_10",
+        "Aliases_11",
+        "Callback_0",
+        "Callback_1",
+        "Callback_2",
+        "Callback_3",
+        "Callback_4",
+        "Callback_5"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "8be82c2d543ce7ec28fede4001fe3c5b9fbf19c39aefa1c5923c79cb867de600",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Hard_Optimization_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Hard_Optimization_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Hard_Optimization_Loops.pyx",
+      "Origin": "Test/Hard_Optimization_Loops.py",
+      "Factory": null,
+      "Description": "Focused hard optimization loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "d3ab7e5f20b641b7870e4e7be63673f4c4871e3950c941b84b870708e42282a1",
+      "Functions": [
+        "Math_Chain",
+        "Math_Ordered",
+        "Math_Branch",
+        "Math_Conditional",
+        "Math_Nested",
+        "Math_Branch_Output",
+        "Math_Logical",
+        "Math_Nested_Branch",
+        "Array_Nested",
+        "Array_Volume",
+        "Math_Volume"
+      ],
+      "Imports": [
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "390556ec6875bf938a64a4b65324b49c94c930fe6b808e5315cc6f7c059b2d30",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Helper_Call_Cases",
+      "Category": "Loops",
+      "Python": "Loops/Helper_Call_Cases.py",
+      "Cython": "../Test_Run/Examples/Loops/Helper_Call_Cases.pyx",
+      "Origin": "Test/Helper_Call_Cases.py",
+      "Factory": null,
+      "Description": "Focused helper call cases workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "34977d5bd3ae2ebc610661c405f12f33870c37ffa1dc7b77da081c67abe285e2",
+      "Functions": [
+        "Scale",
+        "Square",
+        "Blend",
+        "Trig",
+        "Nested",
+        "Integer_First",
+        "Divide",
+        "Adjust",
+        "Choose",
+        "Nested_Choice",
+        "Apply",
+        "Inline",
+        "Local_Alias",
+        "Captured_Alias",
+        "Keywords",
+        "Unused_Argument",
+        "Keyword_Order",
+        "Integer_Intermediate",
+        "Shared_Result",
+        "Shadowed_Math",
+        "Local_Callable",
+        "Captured_Callable",
+        "Array_Apply",
+        "Array_Arithmetic",
+        "Array_Conditional",
+        "Array_Mixed_Choice",
+        "Array_Inline_Choice",
+        "Heavy"
+      ],
+      "Imports": [
+        "import math",
+        "from math import cos as Cosine"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "e54c29e9c89d6da43eb865a97ea737cc3c5c708ef4de130c6e3dfbf8624d811b",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Helper_Local_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Helper_Local_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Helper_Local_Loops.pyx",
+      "Origin": "Test/Helper_Local_Loops.py",
+      "Factory": null,
+      "Description": "Focused helper local loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "bf964c1540edc53bf6a4e000f44f7b04ec85d022cf4419f3cd8d672ce33f4697",
+      "Functions": [
+        "Polynomial",
+        "Nested",
+        "Unused",
+        "Apply",
+        "With_Error",
+        "Heavy"
+      ],
+      "Imports": [
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "7f1cdd32fb0515f19af2e657153a8b58fd5b56dddf3fc0d33e3913cb413d92d6",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Integer_Array_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Integer_Array_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Integer_Array_Loops.pyx",
+      "Origin": "Test/Integer_Array_Loops.py",
+      "Factory": null,
+      "Description": "Focused integer array loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "56139f74ed03584eefeb5d477f7c458b65156eaa41876e393d5ad367330d143b",
+      "Functions": [
+        "Segments",
+        "Nested",
+        "Arithmetic",
+        "Boolean_Add",
+        "Prefix",
+        "Copy_Integer"
+      ],
+      "Imports": [
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "2984ec26423cedc48e7b18d6c33e1ed0b68efe7a058eab0df6f97ed6a548b8de",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Iterator_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Iterator_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Iterator_Loops.pyx",
+      "Origin": "Test/Iterator_Loops.py",
+      "Factory": null,
+      "Description": "Focused iterator loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "309d25701a6bff107d351c3fb38ace3ccb3c7e628fe4c0a52358a4749004160c",
+      "Functions": [
+        "Enumerated",
+        "Array_Enumerated",
+        "Zipped",
+        "Strict",
+        "Array_Zipped",
+        "Negative_Start",
+        "Shifted_Range"
+      ],
+      "Imports": [
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "bd77ad911f89a065e2b9f257544c534745a23d3d31fc98c3aa79ebdefc01d372",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Iterator_Scope_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Iterator_Scope_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Iterator_Scope_Loops.pyx",
+      "Origin": "Test/Iterator_Scope_Loops.py",
+      "Factory": null,
+      "Description": "Focused iterator scope loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "8875707cd1222f06cfa2b5d28b4e357f11b0733edd522d462f3a94ae5e8b8607",
+      "Functions": [
+        "Empty_Capture",
+        "Both",
+        "Zip_Rows",
+        "Array_Rows",
+        "Enumerated_Rows"
+      ],
+      "Imports": [
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": true,
+        "Expected_Translation_Failure": false,
+        "Native_Smoke": {
+          "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+          "Report": "Test_Run/Direct_Scope_Fix_20261119/Qualification.json",
+          "Result": "{\"Comparisons\": 36, \"Native\": 20, \"Parallel\": 10}"
+        }
+      },
+      "Cython_SHA256": "840a022cab82bb1d7ce5ec20c5bbfc7ff50648716280a17340bb9851019b6d8b",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Resolved_Limitation": {
+        "Description": "Cython rejects deletion of a local variable captured by a nested function.",
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450"
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Iterator_Selection_Cases",
+      "Category": "Loops",
+      "Python": "Loops/Iterator_Selection_Cases.py",
+      "Cython": "../Test_Run/Examples/Loops/Iterator_Selection_Cases.pyx",
+      "Origin": "Test/Iterator_Selection_Cases.py",
+      "Factory": null,
+      "Description": "Focused iterator selection cases workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "112d193fc4100b16c728eba968af3948ebc01554b7cbc2e201c8b6f7d744039e",
+      "Functions": [
+        "Cases"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "7fadfc16d91e0644aa789f021ac0d26931aef9f234f94cb80e85479541f5d8b3",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "List_Grid_Loops",
+      "Category": "Loops",
+      "Python": "Loops/List_Grid_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/List_Grid_Loops.pyx",
+      "Origin": "Test/List_Grid_Loops.py",
+      "Factory": null,
+      "Description": "Focused list grid loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "219cbdd231d9df31a4761e575f076142b917bee5f6d3b86caa862d73017089ff",
+      "Functions": [
+        "Weighted",
+        "Diagonal",
+        "Horizontal",
+        "Vertical",
+        "Conditional",
+        "Indexed",
+        "Quotient",
+        "Aliases",
+        "Swap",
+        "Dimensions",
+        "Two_Inputs"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "ff8d76cf255b3893ca8fc655a7983644e656e4b61ebec91b86b1909f12bc40aa",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "List_Runtime_Cases",
+      "Category": "Loops",
+      "Python": "Loops/List_Runtime_Cases.py",
+      "Cython": "../Test_Run/Examples/Loops/List_Runtime_Cases.pyx",
+      "Origin": "Test/List_Runtime_Cases.py",
+      "Factory": null,
+      "Description": "Focused list runtime cases workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "1b5bcbe83281c63d81fd84b6ba27551ce86543df8cf0c6e0d939d750eaac210a",
+      "Functions": [
+        "Shared",
+        "Divide",
+        "Nested",
+        "Divide_Stepped"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "52295146339ee449b94156b91d91317818a1aad83476ab8e242d8fb902e525cc",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Map_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Map_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Map_Loops.pyx",
+      "Origin": "Test/Map_Loops.py",
+      "Factory": null,
+      "Description": "Focused map loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "9e689dc8363c6c4bc800852d4b44d7441a44d3735aebbdcdfb692558bb643cf7",
+      "Functions": [
+        "Copy_Grid",
+        "Threshold_Grid",
+        "Clip_Negative",
+        "Blend",
+        "Add_In_Place",
+        "Fill_Grid",
+        "Select",
+        "Difference",
+        "Scale",
+        "Transpose_Into",
+        "Shared_Write"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "18f51d6ca923875ea8bc4688695fe152c2e42c088bc08c42a9ca64600cd13c6a",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Math_Library",
+      "Category": "Loops",
+      "Python": "Loops/Math_Library.py",
+      "Cython": "../Test_Run/Examples/Loops/Math_Library.pyx",
+      "Origin": "Test/Math_Map_Corpus.py",
+      "Factory": "_Math_Map_Corpus",
+      "Description": "Focused math library workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "5c4654c74b64373c7a2ca5cbe1ac9702c4817ddd4a4a11c20c0714020f3833d1",
+      "Functions": [
+        "Real_acos",
+        "Real_acosh",
+        "Real_asin",
+        "Real_asinh",
+        "Real_atan",
+        "Real_atan2",
+        "Real_atanh",
+        "Real_cbrt",
+        "Real_ceil",
+        "Real_comb",
+        "Real_copysign",
+        "Real_cos",
+        "Real_cosh",
+        "Real_degrees",
+        "Real_dist",
+        "Real_erf",
+        "Real_erfc",
+        "Real_exp",
+        "Real_exp2",
+        "Real_expm1",
+        "Real_fabs",
+        "Real_factorial",
+        "Real_floor",
+        "Real_fmod",
+        "Real_frexp",
+        "Real_fsum",
+        "Real_gamma",
+        "Real_gcd",
+        "Real_hypot",
+        "Real_isclose",
+        "Real_isfinite",
+        "Real_isinf",
+        "Real_isnan",
+        "Real_isqrt",
+        "Real_lcm",
+        "Real_ldexp",
+        "Real_lgamma",
+        "Real_log",
+        "Real_log10",
+        "Real_log1p",
+        "Real_log2",
+        "Real_modf",
+        "Real_nextafter",
+        "Real_perm",
+        "Real_pow",
+        "Real_prod",
+        "Real_radians",
+        "Real_remainder",
+        "Real_sin",
+        "Real_sinh",
+        "Real_sqrt",
+        "Real_tan",
+        "Real_tanh",
+        "Real_trunc",
+        "Real_ulp",
+        "Real_fma",
+        "Real_sumprod",
+        "Complex_acos",
+        "Complex_acosh",
+        "Complex_asin",
+        "Complex_asinh",
+        "Complex_atan",
+        "Complex_atanh",
+        "Complex_cos",
+        "Complex_cosh",
+        "Complex_exp",
+        "Complex_isclose",
+        "Complex_isfinite",
+        "Complex_isinf",
+        "Complex_isnan",
+        "Complex_log",
+        "Complex_log10",
+        "Complex_phase",
+        "Complex_polar",
+        "Complex_rect",
+        "Complex_sin",
+        "Complex_sinh",
+        "Complex_sqrt",
+        "Complex_tan",
+        "Complex_tanh",
+        "Numpy_add",
+        "Numpy_subtract",
+        "Numpy_multiply",
+        "Numpy_divide",
+        "Numpy_true_divide",
+        "Numpy_floor_divide",
+        "Numpy_power",
+        "Numpy_float_power",
+        "Numpy_square",
+        "Numpy_reciprocal",
+        "Numpy_positive",
+        "Numpy_negative",
+        "Numpy_absolute",
+        "Numpy_fabs",
+        "Numpy_sign",
+        "Numpy_sqrt",
+        "Numpy_cbrt",
+        "Numpy_exp",
+        "Numpy_exp2",
+        "Numpy_expm1",
+        "Numpy_log",
+        "Numpy_log2",
+        "Numpy_log10",
+        "Numpy_log1p",
+        "Numpy_logaddexp",
+        "Numpy_logaddexp2",
+        "Numpy_sin",
+        "Numpy_cos",
+        "Numpy_tan",
+        "Numpy_arcsin",
+        "Numpy_arccos",
+        "Numpy_arctan",
+        "Numpy_arctan2",
+        "Numpy_hypot",
+        "Numpy_degrees",
+        "Numpy_radians",
+        "Numpy_deg2rad",
+        "Numpy_rad2deg",
+        "Numpy_unwrap",
+        "Numpy_sinh",
+        "Numpy_cosh",
+        "Numpy_tanh",
+        "Numpy_arcsinh",
+        "Numpy_arccosh",
+        "Numpy_arctanh",
+        "Numpy_sinc",
+        "Numpy_i0",
+        "Numpy_round",
+        "Numpy_around",
+        "Numpy_rint",
+        "Numpy_fix",
+        "Numpy_floor",
+        "Numpy_ceil",
+        "Numpy_trunc",
+        "Numpy_fmod",
+        "Numpy_mod",
+        "Numpy_remainder",
+        "Numpy_modf",
+        "Numpy_divmod",
+        "Numpy_copysign",
+        "Numpy_signbit",
+        "Numpy_frexp",
+        "Numpy_ldexp",
+        "Numpy_nextafter",
+        "Numpy_spacing",
+        "Numpy_isfinite",
+        "Numpy_isinf",
+        "Numpy_isnan",
+        "Numpy_isclose",
+        "Numpy_allclose",
+        "Numpy_minimum",
+        "Numpy_maximum",
+        "Numpy_fmin",
+        "Numpy_fmax",
+        "Numpy_clip",
+        "Numpy_gcd",
+        "Numpy_lcm",
+        "Numpy_sum",
+        "Numpy_prod",
+        "Numpy_min",
+        "Numpy_max",
+        "Numpy_mean",
+        "Numpy_var",
+        "Numpy_std",
+        "Numpy_nansum",
+        "Numpy_nanprod",
+        "Numpy_nanmin",
+        "Numpy_nanmax",
+        "Numpy_nanmean",
+        "Numpy_nanvar",
+        "Numpy_nanstd",
+        "Numpy_cumsum",
+        "Numpy_cumprod",
+        "Numpy_nancumsum",
+        "Numpy_nancumprod",
+        "Numpy_diff",
+        "Numpy_gradient",
+        "Numpy_real",
+        "Numpy_imag",
+        "Numpy_angle",
+        "Numpy_conj",
+        "Numpy_conjugate",
+        "Numpy_asin",
+        "Numpy_acos",
+        "Numpy_atan",
+        "Numpy_atan2",
+        "Numpy_asinh",
+        "Numpy_acosh",
+        "Numpy_atanh",
+        "Numpy_pow",
+        "Numpy_amin",
+        "Numpy_amax",
+        "Numpy_cumulative_sum",
+        "Numpy_cumulative_prod",
+        "Builtin_abs",
+        "Builtin_round",
+        "Builtin_pow",
+        "Builtin_divmod",
+        "Builtin_sum",
+        "Builtin_min",
+        "Builtin_max",
+        "Builtin_int",
+        "Builtin_float",
+        "Builtin_complex",
+        "Builtin_bool",
+        "Composite",
+        "Nested",
+        "Float32_Intermediates",
+        "Fraction",
+        "Literal_Identity",
+        "Infinite_Literal",
+        "Collision",
+        "Identity_Finite",
+        "Identity_Zero",
+        "Identity_Infinite",
+        "Identity_Tuple"
+      ],
+      "Imports": [
+        "import math",
+        "import cmath",
+        "import numpy as np",
+        "from math import sin as Wave"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "fc1dbce71786d40d4da454edcfcc8b3aa6dfd9bef643527d6b30b6210dee74fd",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Math_Unary_Sign_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Math_Unary_Sign_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Math_Unary_Sign_Loops.pyx",
+      "Origin": "Test/Math_Unary_Sign_Loops.py",
+      "Factory": null,
+      "Description": "Focused math unary sign loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "128f1d1521950fbc872f2c655794c97e694a3fbd8ce246257f0d5111d14379be",
+      "Functions": [
+        "Integer_Zero",
+        "Integer_Nonzero",
+        "Boolean_Zero",
+        "Boolean_Nonzero",
+        "Nested_Boolean_Zero",
+        "Positive_Boolean_Zero",
+        "Double_Integer_Negative",
+        "Float_Negative_Zero",
+        "Double_Boolean_Negative",
+        "Float_Negative_Nonzero"
+      ],
+      "Imports": [
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "4c5bebd42396931e1bb61cb6b8b7019736f91f2d56f3e92bad14625e99044b97",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Module_Constant_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Module_Constant_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Module_Constant_Loops.pyx",
+      "Origin": "Test/Module_Constant_Loops.py",
+      "Factory": null,
+      "Description": "Focused module constant loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "e8226b100e088d47b3fdc4bbffc0311f650511c0dddefe4b315d0af71e5444f1",
+      "Functions": [
+        "Same",
+        "range"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "248d6dcdee0948779036289a6afd223bc0060f291a3da921c3fde3cd5c889dfa",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Module_Nested_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Module_Nested_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Module_Nested_Loops.pyx",
+      "Origin": "Test/Module_Nested_Loops.py",
+      "Factory": null,
+      "Description": "Focused module nested loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "6501db63891a0b366c3085535a257233e12dafdf1203dc79d7f84d0b59b02bfe",
+      "Functions": [
+        "Global_Region",
+        "Local_Reporting"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": true,
+        "Expected_Translation_Failure": false,
+        "Native_Smoke": {
+          "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+          "Report": "Test_Run/Direct_Scope_Fix_20261119/Qualification.json",
+          "Result": {
+            "Error": null,
+            "Native": {
+              "Fallbacks": 2,
+              "Native": 12,
+              "Parallel": 9,
+              "Team": 2
+            },
+            "Values": {
+              "Events": [
+                [
+                  "if",
+                  196,
+                  7
+                ],
+                [
+                  "division",
+                  214,
+                  3
+                ],
+                [
+                  "finally",
+                  226,
+                  3
+                ],
+                "enter",
+                [
+                  "with",
+                  246,
+                  4
+                ],
+                [
+                  "exit",
+                  null,
+                  246,
+                  4
+                ],
+                [
+                  "outer",
+                  0,
+                  252,
+                  3
+                ],
+                [
+                  "outer",
+                  1,
+                  262,
+                  3
+                ],
+                [
+                  "outer",
+                  2,
+                  276,
+                  3
+                ],
+                [
+                  "while",
+                  1,
+                  288,
+                  3
+                ],
+                [
+                  "while",
+                  0,
+                  294,
+                  3
+                ],
+                [
+                  "missing",
+                  0,
+                  "NameError"
+                ],
+                [
+                  "local",
+                  0,
+                  312
+                ],
+                [
+                  "local",
+                  2,
+                  318
+                ]
+              ],
+              "Final_Index": 3,
+              "Index": 3,
+              "Remaining": 0,
+              "Results": {
+                "Local_Reporting": [
+                  324,
+                  3,
+                  [
+                    [
+                      "if",
+                      196,
+                      7
+                    ],
+                    [
+                      "division",
+                      214,
+                      3
+                    ],
+                    [
+                      "finally",
+                      226,
+                      3
+                    ],
+                    "enter",
+                    [
+                      "with",
+                      246,
+                      4
+                    ],
+                    [
+                      "exit",
+                      null,
+                      246,
+                      4
+                    ],
+                    [
+                      "outer",
+                      0,
+                      252,
+                      3
+                    ],
+                    [
+                      "outer",
+                      1,
+                      262,
+                      3
+                    ],
+                    [
+                      "outer",
+                      2,
+                      276,
+                      3
+                    ],
+                    [
+                      "while",
+                      1,
+                      288,
+                      3
+                    ],
+                    [
+                      "while",
+                      0,
+                      294,
+                      3
+                    ],
+                    [
+                      "missing",
+                      0,
+                      "NameError"
+                    ],
+                    [
+                      "local",
+                      0,
+                      312
+                    ],
+                    [
+                      "local",
+                      2,
+                      318
+                    ]
+                  ]
+                ],
+                "Nested": [
+                  312,
+                  3,
+                  3,
+                  [
+                    [
+                      "if",
+                      196,
+                      7
+                    ],
+                    [
+                      "division",
+                      214,
+                      3
+                    ],
+                    [
+                      "finally",
+                      226,
+                      3
+                    ],
+                    "enter",
+                    [
+                      "with",
+                      246,
+                      4
+                    ],
+                    [
+                      "exit",
+                      null,
+                      246,
+                      4
+                    ],
+                    [
+                      "outer",
+                      0,
+                      252,
+                      3
+                    ],
+                    [
+                      "outer",
+                      1,
+                      262,
+                      3
+                    ],
+                    [
+                      "outer",
+                      2,
+                      276,
+                      3
+                    ],
+                    [
+                      "while",
+                      1,
+                      288,
+                      3
+                    ],
+                    [
+                      "while",
+                      0,
+                      294,
+                      3
+                    ],
+                    [
+                      "missing",
+                      0,
+                      "NameError"
+                    ]
+                  ]
+                ]
+              },
+              "Total": 324
+            }
+          }
+        }
+      },
+      "Cython_SHA256": "84aeea248a5295c171eab1c7830b6f99fcd4f68a28cc6de33c4e94e7ecf2bbf6",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Resolved_Limitation": {
+        "Description": "A module loop target published through the runtime namespace is not declared for later direct Cython reads.",
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450"
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Module_Scalar_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Module_Scalar_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Module_Scalar_Loops.pyx",
+      "Origin": "Test/Module_Scalar_Loops.py",
+      "Factory": null,
+      "Description": "Focused module scalar loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "4e30ca1a0489ba40be457cca2f895eefff2b7fcec9f29c1f9e16a7625c445165",
+      "Functions": [
+        "Callback"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "91c42756de6306497e818cd9bbd5f4eb15db3b9819d77acd1d067c70bfae1382",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Monitoring_Cases",
+      "Category": "Loops",
+      "Python": "Loops/Monitoring_Cases.py",
+      "Cython": "../Test_Run/Examples/Loops/Monitoring_Cases.pyx",
+      "Origin": "Test/Monitoring_Cases.py",
+      "Factory": null,
+      "Description": "Focused monitoring cases workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "205ff57f6d08333470ad05e4f30ba5613fe61a67596b3e317564dac73c15c98d",
+      "Functions": [
+        "Transform",
+        "Apply",
+        "Inline"
+      ],
+      "Imports": [
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "208cb73daaf8aaa2bae23674f42223dd8a5f5a26b9369a5d53b04917461367ae",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Nested_Scope_Cases",
+      "Category": "Loops",
+      "Python": "Loops/Nested_Scope_Cases.py",
+      "Cython": "../Test_Run/Examples/Loops/Nested_Scope_Cases.pyx",
+      "Origin": "Test/Nested_Scope_Cases.py",
+      "Factory": null,
+      "Description": "Focused nested scope cases workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "a4e8b1f890a6999b2c6566fe2461d3edf0d3571104d5413a3c95ba87e2e34525",
+      "Functions": [
+        "List_Factory",
+        "Array_Factory",
+        "Captured_List",
+        "Captured_Array",
+        "Shadowed_Builtin",
+        "Nonlocal_Counter",
+        "Unbound_Capture",
+        "Shadowed_Local",
+        "Array_Shadowed_Local",
+        "Unbound_Math",
+        "Unused_Length",
+        "Captured_Length",
+        "Lambda_Default_Shadow",
+        "Function_Default_Shadow"
+      ],
+      "Imports": [
+        "from math import sin",
+        "import math as _Private__math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": true,
+        "Expected_Translation_Failure": false,
+        "Native_Smoke": {
+          "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+          "Report": "Test_Run/Direct_Scope_Fix_20261119/Qualification.json",
+          "Result": "Nested scopes: 69 exact comparisons; 20 native calls; raw native capability verified"
+        }
+      },
+      "Cython_SHA256": "06f7af139609955363b972aa51168b5db37a5c666b06d2f032fcd95023308952",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Resolved_Limitation": {
+        "Description": "Deleted closure captures and deliberately unbound local/math names are rejected during translation.",
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450"
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Numeric_Extensions",
+      "Category": "Loops",
+      "Python": "Loops/Numeric_Extensions.py",
+      "Cython": "../Test_Run/Examples/Loops/Numeric_Extensions.pyx",
+      "Origin": "Test/Numeric_Extensions.py",
+      "Factory": null,
+      "Description": "Focused numeric extensions workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "0c81c2cf06e2a4e22967af061f0ab4e1d7d58e89ca5802d4d00638eec75b4a6c",
+      "Functions": [
+        "Clipped_Median",
+        "Channel_Distance"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "0b209027b9b4d9cfb43fa6987eb42bd24ca080d39155ea6275c9be967642e661",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Numeric_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Numeric_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Numeric_Loops.pyx",
+      "Origin": "Test/Numeric_Loops.py",
+      "Factory": null,
+      "Description": "Focused numeric loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "8822414c0158d183325bb199004f342e17087e55326506286c6a387b2bec96f9",
+      "Functions": [
+        "Clear_Elements",
+        "Prefix_Sum"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "a56404e0efc5744e1847eed51269a00831be51a4ceda161836e4219489fade5f",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Numeric_Region_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Numeric_Region_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Numeric_Region_Loops.pyx",
+      "Origin": "Test/Numeric_Region_Loops.py",
+      "Factory": null,
+      "Description": "Focused numeric region loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "1ea2cad39a519d7abbc0845540f362d437f9469363d236bb3cff0ff9282a541a",
+      "Functions": [
+        "Escape",
+        "Pairwise",
+        "Integrate",
+        "Prefix",
+        "Powers",
+        "Control",
+        "Nested",
+        "Aliases",
+        "Dimensions",
+        "Sparse",
+        "Binding_State"
+      ],
+      "Imports": [
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "dc5c83d370d9b57e77e996eae7e61cf873cb69d4f4d78ff1b2b8b6241b847dcc",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Parallel_Reductions",
+      "Category": "Loops",
+      "Python": "Loops/Parallel_Reductions.py",
+      "Cython": "../Test_Run/Examples/Loops/Parallel_Reductions.pyx",
+      "Origin": "Test/Parallel_Reductions.py",
+      "Factory": null,
+      "Description": "Focused parallel reductions workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "227bc129948578149420bd1d04b3993a6fec1b50e7af0f474e6669c5b150e775",
+      "Functions": [
+        "Modulo_Total",
+        "Signed_Total",
+        "Reverse_Total",
+        "Constant_Total",
+        "Modulo_Constant",
+        "Floor_Constant",
+        "Intermediate_Overflow",
+        "Bounds_Division",
+        "Ordered_Float",
+        "Dependent_Total",
+        "Rebound_Index",
+        "Workloads"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "7d7ec676f60a756d2ef42a7090b4562d38d098e80a271c3eb5d3f1da4fcd5c1e",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Random_Bound_Cases",
+      "Category": "Loops",
+      "Python": "Loops/Random_Bound_Cases.py",
+      "Cython": "../Test_Run/Examples/Loops/Random_Bound_Cases.pyx",
+      "Origin": "Test/Random_Bound_Cases.py",
+      "Factory": null,
+      "Description": "Focused random bound cases workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "348ba0a2384cdb45c5c44dad52d66c7a4a6f99aaf4b9870b7175e292d3e7b800",
+      "Functions": [
+        "Cases"
+      ],
+      "Imports": [
+        "import numpy as Numpy"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "b89dde491f00e4b4b96b05e3156736b9ee828fff2d1146eae4157538ca49b3d7",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Random_Bound_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Random_Bound_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Random_Bound_Loops.pyx",
+      "Origin": "Test/Random_Bound_Loops.py",
+      "Factory": null,
+      "Description": "Focused random bound loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "d88906579bc751409c51f7fe260711e22629042c39bed5c87f451ff88057fa74",
+      "Functions": [
+        "Pure_Body",
+        "Random_Body",
+        "Heavy",
+        "Ordered_Math",
+        "List_Math"
+      ],
+      "Imports": [
+        "import math",
+        "import random"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "af7822a861c2ed99b9b5d8cd73c179075fc8b58bbf185feacea1cd2517f3176e",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Random_Boundary_Cases",
+      "Category": "Loops",
+      "Python": "Loops/Random_Boundary_Cases.py",
+      "Cython": "../Test_Run/Examples/Loops/Random_Boundary_Cases.pyx",
+      "Origin": "Test/Random_Boundary_Cases.py",
+      "Factory": null,
+      "Description": "Focused random boundary cases workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "79b510fafd01395d6d37fcd40276817c26ee3e7d5aed43182fbde68b68bd8aa9",
+      "Functions": [
+        "Sources"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "fc7f56bb3173d7663d286317d6e6bfb067f418b72abde303335c4b866bba6cd1",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Ranking_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Ranking_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Ranking_Loops.pyx",
+      "Origin": "Test/Ranking_Loops.py",
+      "Factory": null,
+      "Description": "Focused ranking loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "a64a655a93592c96ad5dd767cafcf5ffdb15a89647d73956ce228c637102d64f",
+      "Functions": [
+        "Small",
+        "Large",
+        "Empty",
+        "Native_Calls",
+        "Dynamic",
+        "Nested",
+        "Early_Exit",
+        "Shadowed",
+        "Reverse"
+      ],
+      "Imports": [
+        "import numpy as np"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "0efb5c8c3aa63bd4a506d1613e5df0eef32d66e5788f42e1e8e0b371894f5cf0",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Readable_Pyx_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Readable_Pyx_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Readable_Pyx_Loops.pyx",
+      "Origin": "Test/Readable_Pyx_Loops.py",
+      "Factory": null,
+      "Description": "Focused readable pyx loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "68d394f5079fa5f6e9eedb896a5f55de873183f09bc0afe8bd49116493336118",
+      "Functions": [
+        "Smooth",
+        "Process",
+        "Ordinary",
+        "Ordered"
+      ],
+      "Imports": [
+        "from __future__ import annotations",
+        "import math",
+        "import numpy as N"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "219d57368de61c86660dd167ea0f61337841e5d64c9d521c99aa428153f5c808",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Readonly_Selection_Cases",
+      "Category": "Loops",
+      "Python": "Loops/Readonly_Selection_Cases.py",
+      "Cython": "../Test_Run/Examples/Loops/Readonly_Selection_Cases.pyx",
+      "Origin": "Test/Readonly_Selection_Cases.py",
+      "Factory": null,
+      "Description": "Focused readonly selection cases workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "02b709bbbae8f152fc555f910e0f7c51b92afed961a939823be3b125ceaee031",
+      "Functions": [
+        "Source",
+        "Cases"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "e5d6d81a8606553f9cdbe0f1dc49ab1f0163bd94de08fab89890240a64947a2e",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Readonly_Storage_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Readonly_Storage_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Readonly_Storage_Loops.pyx",
+      "Origin": "Test/Readonly_Storage_Loops.py",
+      "Factory": null,
+      "Description": "Focused readonly storage loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "99689fb4680d82092724b393d071c38817afe0782fb3db7ff06a3c7af9283013",
+      "Functions": [
+        "Flat",
+        "Flat_Region",
+        "Array_Region",
+        "Rows",
+        "Array_Rows",
+        "Shifted_Rows",
+        "Volume",
+        "Length_Identity",
+        "Checked_Length"
+      ],
+      "Imports": [
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "aedfb91827d3ce70ff84dfb5e3197c08ccf9a7b61665e14e0a2092a88918d9e2",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Region_Tail_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Region_Tail_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Region_Tail_Loops.pyx",
+      "Origin": "Test/Region_Tail_Loops.py",
+      "Factory": null,
+      "Description": "Focused region tail loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "e3402882073018cdee3a32d21ee593914749f30b0494da471c7950d9208e9ff5",
+      "Functions": [
+        "Random_Tail",
+        "Unobserved_Pairs",
+        "Unobserved_Tail",
+        "Ordered_Pairs",
+        "Conditional_Tail",
+        "Reverse_Triangle",
+        "Numeric_Tail"
+      ],
+      "Imports": [
+        "import math",
+        "import random"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "9dc9b754a789b1d11abc0c5b91ce20773d6f6f2df463433769fc316805aeaa89",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Scalar_Arithmetic",
+      "Category": "Loops",
+      "Python": "Loops/Scalar_Arithmetic.py",
+      "Cython": "../Test_Run/Examples/Loops/Scalar_Arithmetic.pyx",
+      "Origin": "Test/Scalar_Arithmetic.py",
+      "Factory": null,
+      "Description": "Focused scalar arithmetic workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "48c0cc449f93507f437445986eb628deb3f84680edc4ad2677781dbf9b4fd25b",
+      "Functions": [
+        "Modulo_Total",
+        "Floor_Total",
+        "Remainder_Total",
+        "Minimum_Remainder",
+        "Division_Total",
+        "Wide_Division",
+        "Mixed_Division",
+        "Negative_Zero",
+        "Fractional_Divisor",
+        "Division_Overflow"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "c75d8cd032f94395208ac9f1b49549d9ab84af90cd6e975d663a7967fbb4086e",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Scalar_Control",
+      "Category": "Loops",
+      "Python": "Loops/Scalar_Control.py",
+      "Cython": "../Test_Run/Examples/Loops/Scalar_Control.pyx",
+      "Origin": "Test/Scalar_Control.py",
+      "Factory": null,
+      "Description": "Focused scalar control workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "fd9cf19f073a9234ab12f474a54bad37807d470b6ac6e94d64706c1c182b1895",
+      "Functions": [
+        "Dynamic_Stride",
+        "Stride_Snapshot",
+        "Dynamic_Division",
+        "For_Else",
+        "While_Else",
+        "Nested_Else",
+        "Early_Return",
+        "Early_Constant",
+        "Tuple_Fibonacci",
+        "Chained_And_Conditional",
+        "Integer_Operators",
+        "Integer_Powers",
+        "Nested_Early_Return",
+        "Conditional_Zero",
+        "Unbound_After_Empty",
+        "Identity_Early",
+        "Identity_Tuple",
+        "Else_Unbound"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "374d08a8e814bd6115295cca17e379f4fa473701fee3d307a130af2ee4d48b46",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Scalar_Eligibility",
+      "Category": "Loops",
+      "Python": "Loops/Scalar_Eligibility.py",
+      "Cython": "../Test_Run/Examples/Loops/Scalar_Eligibility.pyx",
+      "Origin": "Test/Scalar_Eligibility_Corpus.py",
+      "Factory": "Corpus",
+      "Description": "Focused scalar eligibility workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "0514b2d4f6c872571686c629af00c1756faa53f34ac7c4aacd4d88caa525145d",
+      "Functions": [
+        "Compute_And_Whole_0",
+        "Compute_And_Region_0",
+        "Compute_And_Nested_0",
+        "Compute_Or_Whole_0",
+        "Compute_Or_Region_0",
+        "Compute_Or_Nested_0",
+        "Compute_Xor_Whole_0",
+        "Compute_Xor_Region_0",
+        "Compute_Xor_Nested_0",
+        "Compute_Left_Whole_0",
+        "Compute_Left_Region_0",
+        "Compute_Left_Nested_0",
+        "Compute_Right_Whole_0",
+        "Compute_Right_Region_0",
+        "Compute_Right_Nested_0",
+        "Compute_Right_Literal_Whole_0",
+        "Compute_Right_Literal_Region_0",
+        "Compute_Right_Literal_Nested_0",
+        "Compute_Power_Whole_0",
+        "Compute_Power_Region_0",
+        "Compute_Power_Nested_0",
+        "Compute_Negate_Whole_0",
+        "Compute_Negate_Region_0",
+        "Compute_Negate_Nested_0",
+        "Compute_Invert_Whole_0",
+        "Compute_Invert_Region_0",
+        "Compute_Invert_Nested_0",
+        "Compute_Positive_Fresh_Whole_0",
+        "Compute_Positive_Fresh_Region_0",
+        "Compute_Positive_Fresh_Nested_0",
+        "Compute_Conditional_Whole_0",
+        "Compute_Conditional_Region_0",
+        "Compute_Conditional_Nested_0",
+        "Compute_Modulo_Fresh_Whole_0",
+        "Compute_Modulo_Fresh_Region_0",
+        "Compute_Modulo_Fresh_Nested_0",
+        "Compute_Negative_Cached_Whole_0",
+        "Compute_Negative_Cached_Region_0",
+        "Compute_Negative_Cached_Nested_0",
+        "Compute_Aug_And_Whole_0",
+        "Compute_Aug_And_Region_0",
+        "Compute_Aug_And_Nested_0",
+        "Compute_Aug_Or_Whole_0",
+        "Compute_Aug_Or_Region_0",
+        "Compute_Aug_Or_Nested_0",
+        "Compute_Aug_Xor_Whole_0",
+        "Compute_Aug_Xor_Region_0",
+        "Compute_Aug_Xor_Nested_0",
+        "Compute_Aug_Left_Whole_0",
+        "Compute_Aug_Left_Region_0",
+        "Compute_Aug_Left_Nested_0",
+        "Compute_Aug_Right_Whole_0",
+        "Compute_Aug_Right_Region_0",
+        "Compute_Aug_Right_Nested_0",
+        "Compute_Aug_Power_Whole_0",
+        "Compute_Aug_Power_Region_0",
+        "Compute_Aug_Power_Nested_0",
+        "Compute_Conditional_Xor_Whole_0",
+        "Compute_Conditional_Xor_Region_0",
+        "Compute_Conditional_Xor_Nested_0",
+        "Compute_And_Whole_1",
+        "Compute_And_Region_1",
+        "Compute_And_Nested_1",
+        "Compute_Or_Whole_1",
+        "Compute_Or_Region_1",
+        "Compute_Or_Nested_1",
+        "Compute_Xor_Whole_1",
+        "Compute_Xor_Region_1",
+        "Compute_Xor_Nested_1",
+        "Compute_Left_Whole_1",
+        "Compute_Left_Region_1",
+        "Compute_Left_Nested_1",
+        "Compute_Right_Whole_1",
+        "Compute_Right_Region_1",
+        "Compute_Right_Nested_1",
+        "Compute_Right_Literal_Whole_1",
+        "Compute_Right_Literal_Region_1",
+        "Compute_Right_Literal_Nested_1",
+        "Compute_Power_Whole_1",
+        "Compute_Power_Region_1",
+        "Compute_Power_Nested_1",
+        "Compute_Negate_Whole_1",
+        "Compute_Negate_Region_1",
+        "Compute_Negate_Nested_1",
+        "Compute_Invert_Whole_1",
+        "Compute_Invert_Region_1",
+        "Compute_Invert_Nested_1",
+        "Compute_Positive_Fresh_Whole_1",
+        "Compute_Positive_Fresh_Region_1",
+        "Compute_Positive_Fresh_Nested_1",
+        "Compute_Conditional_Whole_1",
+        "Compute_Conditional_Region_1",
+        "Compute_Conditional_Nested_1",
+        "Compute_Modulo_Fresh_Whole_1",
+        "Compute_Modulo_Fresh_Region_1",
+        "Compute_Modulo_Fresh_Nested_1",
+        "Compute_Negative_Cached_Whole_1",
+        "Compute_Negative_Cached_Region_1",
+        "Compute_Negative_Cached_Nested_1",
+        "Compute_Aug_And_Whole_1",
+        "Compute_Aug_And_Region_1",
+        "Compute_Aug_And_Nested_1",
+        "Compute_Aug_Or_Whole_1",
+        "Compute_Aug_Or_Region_1",
+        "Compute_Aug_Or_Nested_1",
+        "Compute_Aug_Xor_Whole_1",
+        "Compute_Aug_Xor_Region_1",
+        "Compute_Aug_Xor_Nested_1",
+        "Compute_Aug_Left_Whole_1",
+        "Compute_Aug_Left_Region_1",
+        "Compute_Aug_Left_Nested_1",
+        "Compute_Aug_Right_Whole_1",
+        "Compute_Aug_Right_Region_1",
+        "Compute_Aug_Right_Nested_1",
+        "Compute_Aug_Power_Whole_1",
+        "Compute_Aug_Power_Region_1",
+        "Compute_Aug_Power_Nested_1",
+        "Compute_Conditional_Xor_Whole_1",
+        "Compute_Conditional_Xor_Region_1",
+        "Compute_Conditional_Xor_Nested_1"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "5795157fd4a740992854840ba17390f0c09d3e143e36a1a842b674b40868c60d",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Scalar_Flow",
+      "Category": "Loops",
+      "Python": "Loops/Scalar_Flow.py",
+      "Cython": "../Test_Run/Examples/Loops/Scalar_Flow.pyx",
+      "Origin": "Test/Scalar_Flow_Corpus.py",
+      "Factory": "Corpus",
+      "Description": "Focused scalar flow workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "05a3f8ff8abc067ed02965a825690e5ab4f6837a37f8c1d5d50a5bdc27ad0399",
+      "Functions": [
+        "Compute_Conditional_Direct_0",
+        "Compute_Conditional_For_0",
+        "Compute_Conditional_While_0",
+        "Compute_Conditional_Branch_0",
+        "Compute_Tuple_Direct_0",
+        "Compute_Tuple_For_0",
+        "Compute_Tuple_While_0",
+        "Compute_Tuple_Branch_0",
+        "Compute_Intermediate_Direct_0",
+        "Compute_Intermediate_For_0",
+        "Compute_Intermediate_While_0",
+        "Compute_Intermediate_Branch_0",
+        "Compute_Cached_Direct_0",
+        "Compute_Cached_For_0",
+        "Compute_Cached_While_0",
+        "Compute_Cached_Branch_0",
+        "Compute_Branches_Direct_0",
+        "Compute_Branches_For_0",
+        "Compute_Branches_While_0",
+        "Compute_Branches_Branch_0",
+        "Compute_Overwrite_Direct_0",
+        "Compute_Overwrite_For_0",
+        "Compute_Overwrite_While_0",
+        "Compute_Overwrite_Branch_0",
+        "Compute_Conditional_Direct_1",
+        "Compute_Conditional_For_1",
+        "Compute_Conditional_While_1",
+        "Compute_Conditional_Branch_1",
+        "Compute_Tuple_Direct_1",
+        "Compute_Tuple_For_1",
+        "Compute_Tuple_While_1",
+        "Compute_Tuple_Branch_1",
+        "Compute_Intermediate_Direct_1",
+        "Compute_Intermediate_For_1",
+        "Compute_Intermediate_While_1",
+        "Compute_Intermediate_Branch_1",
+        "Compute_Cached_Direct_1",
+        "Compute_Cached_For_1",
+        "Compute_Cached_While_1",
+        "Compute_Cached_Branch_1",
+        "Compute_Branches_Direct_1",
+        "Compute_Branches_For_1",
+        "Compute_Branches_While_1",
+        "Compute_Branches_Branch_1",
+        "Compute_Overwrite_Direct_1",
+        "Compute_Overwrite_For_1",
+        "Compute_Overwrite_While_1",
+        "Compute_Overwrite_Branch_1"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "4e17d40f0c5d1e9cb719a16edb0be1c021d69f618787651b06da1e47b238938c",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Scalar_Math_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Scalar_Math_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Scalar_Math_Loops.pyx",
+      "Origin": "Test/Scalar_Math_Loops.py",
+      "Factory": null,
+      "Description": "Focused scalar math loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "8e8d252c20ea6cb912ba00ff88dbed97da46e325f74ead0a906e9fab74a95861",
+      "Functions": [
+        "Recurrence",
+        "Aliases",
+        "Branches",
+        "Descending",
+        "Domain",
+        "Global_Domain",
+        "Nested",
+        "Destruction",
+        "Local_Destruction"
+      ],
+      "Imports": [
+        "import math",
+        "import math as Trig",
+        "from math import sin, cos"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": true,
+        "Expected_Translation_Failure": false,
+        "Native_Smoke": {
+          "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+          "Report": "Test_Run/Direct_Scope_Fix_20261119/Qualification.json",
+          "Result": {
+            "Comparisons": 95,
+            "Positive_Native_Cases": 10,
+            "Native_Elements": 190867,
+            "Module_Stats": {
+              "Native": 5,
+              "Parallel": 0,
+              "Team": 1,
+              "Fallbacks": 3
+            }
+          }
+        }
+      },
+      "Cython_SHA256": "0892f2be92779f102372d4dba687aa3a90400d70ebdb4bff41ab0273cefc0bf4",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Resolved_Limitation": {
+        "Description": "Module scalar outputs published through the runtime namespace are not declared for later direct Cython reads.",
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450"
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Scalar_Promotion_Cases",
+      "Category": "Loops",
+      "Python": "Loops/Scalar_Promotion_Cases.py",
+      "Cython": "../Test_Run/Examples/Loops/Scalar_Promotion_Cases.pyx",
+      "Origin": "Test/Scalar_Promotion_Cases.py",
+      "Factory": null,
+      "Description": "Focused scalar promotion cases workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "7782843a56035476bc09398c405fb0fc968198e801273152f9044d7dc76c2056",
+      "Functions": [
+        "Source"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "be05a14a9be490377781898f93db07f83abaa98685e5ad18b8badcb494853e5c",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Scalar_Regions",
+      "Category": "Loops",
+      "Python": "Loops/Scalar_Regions.py",
+      "Cython": "../Test_Run/Examples/Loops/Scalar_Regions.pyx",
+      "Origin": "Test/Scalar_Regions.py",
+      "Factory": null,
+      "Description": "Focused scalar regions workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "095cefc05779963263da8460e8505c7315e1993828e69157fcce7f96a65ecb06",
+      "Functions": [
+        "Progress_Control",
+        "Remainder",
+        "Division",
+        "Plain_Region",
+        "Mutating_Progress",
+        "Overflow",
+        "Range_Snapshot",
+        "Negative_Start",
+        "Conditional_Identity",
+        "Literal_Identity",
+        "Constant_Identity",
+        "Remainder_Benchmark",
+        "Division_Benchmark"
+      ],
+      "Imports": [
+        "import time"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "3e144a9830dd5ba940dc4ecbe505ca80bba3bbea29e2690cac3bb4e8eda5d47a",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Shape_Only_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Shape_Only_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Shape_Only_Loops.pyx",
+      "Origin": "Test/Shape_Only_Loops.py",
+      "Factory": null,
+      "Description": "Focused shape only loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "2a7ffea05e3abadfbee1b555ced79623a909d8d2fc7807a3734bf18d645120cf",
+      "Functions": [
+        "Shape_List",
+        "Shape_Path",
+        "Shape_Array",
+        "Shape_Bound"
+      ],
+      "Imports": [
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "9b1b8b2e587e59bbff24de5e145312373dbcbd3b98b21d171775d53232016fef",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Static_Only_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Static_Only_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Static_Only_Loops.pyx",
+      "Origin": "Test/Static_Only_Loops.py",
+      "Factory": null,
+      "Description": "Focused static only loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "11a824686457769464fe07c7d33679a9e3b50fe0fbc871caaa1116ea88263c8d",
+      "Functions": [
+        "Indirect_Write",
+        "With_Call",
+        "Other_Source",
+        "Other_Bounds",
+        "Nested"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "1a09db2182ef092d52ee0880f7ca50c7dc10ab9102f49356d7ed25f064a9217b",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Storage_Composition_Cases",
+      "Category": "Loops",
+      "Python": "Loops/Storage_Composition_Cases.py",
+      "Cython": "../Test_Run/Examples/Loops/Storage_Composition_Cases.pyx",
+      "Origin": "Test/Storage_Composition_Cases.py",
+      "Factory": null,
+      "Description": "Focused storage composition cases workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "6b5be5fea43c5aefe6e7cae0f46c2c50961a8a7769de78e1833ace5e87ad3a24",
+      "Functions": [
+        "Source",
+        "Cases"
+      ],
+      "Imports": [],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "88548f9e1efd5fda3163979085466123b0587b381211d46955b95332215c070b",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Structural_Loops",
+      "Category": "Loops",
+      "Python": "Loops/Structural_Loops.py",
+      "Cython": "../Test_Run/Examples/Loops/Structural_Loops.pyx",
+      "Origin": "Test/Structural_Loops.py",
+      "Factory": null,
+      "Description": "Focused structural loops workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "b94a216133f0519bb14c52208e59ec9c92fbdc5b6db8c2f7af7be696d8a3721c",
+      "Functions": [
+        "Fused_Maps",
+        "Invariant_Scale",
+        "Repeated_Scores",
+        "Local_Values",
+        "Column_First",
+        "Temporary_Pipeline",
+        "Versioned_Reads",
+        "Unsafe_Neighbor",
+        "Implicit_Fusion",
+        "Explicit_None",
+        "Augmented_Outputs",
+        "Augmented_Locals",
+        "Sequential_Updates",
+        "Independent_Updates",
+        "Unsafe_Local_Reduction",
+        "Unsafe_Index_Update",
+        "Uninitialized_Local"
+      ],
+      "Imports": [
+        "import numpy as np"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "b7597dee0aa0da59df7edb1b20a7c7736806bbb1168cdafea90db5bb9a30f2ad",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Wrapped_Index_Cases",
+      "Category": "Loops",
+      "Python": "Loops/Wrapped_Index_Cases.py",
+      "Cython": "../Test_Run/Examples/Loops/Wrapped_Index_Cases.pyx",
+      "Origin": "Test/Wrapped_Index_Cases.py",
+      "Factory": null,
+      "Description": "Focused wrapped index cases workload; ordinary Python inputs include supported and retained cases.",
+      "Python_SHA256": "f1a1f45aa0132db4485ecb4e692a38be2cc3089d8c857d6d620b5ca63b95f463",
+      "Functions": [
+        "Reverse",
+        "Stepped",
+        "Negate",
+        "Rows",
+        "In_Place",
+        "Wrapped_Alias",
+        "Shared_Indices",
+        "Carried_Index",
+        "Index_And_Copy",
+        "Repeated_Indices",
+        "Array_Reverse",
+        "Array_Rows",
+        "Array_Alias",
+        "Heavy"
+      ],
+      "Imports": [
+        "import math"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": false,
+        "Expected_Translation_Failure": false
+      },
+      "Cython_SHA256": "74b2b69a09ae5fb7e95a04d14c42abade4563076aab8c971b172ab173bce9b4c",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": false
+    },
+    {
+      "Name": "Quick_Start",
+      "Category": "Quick start",
+      "Python": "Quick_Start.py",
+      "Cython": "Quick_Start.pyx",
+      "Origin": "New small demonstration using the existing array/math loop family",
+      "Factory": null,
+      "Description": "A small runnable example: no PyCeler decorators, type annotations or Cython declarations.",
+      "Python_SHA256": "8bdf269c59b491c49582c9fa1ac99c3c0350632cc9e97ee876ddc6e65f8d3ef5",
+      "Functions": [
+        "transform"
+      ],
+      "Imports": [
+        "import math",
+        "import time",
+        "import numpy as np"
+      ],
+      "Validation": {
+        "Python_Syntax": "passed",
+        "Cython_Translation": "passed",
+        "Executed": true,
+        "Expected_Translation_Failure": false,
+        "Native_Smoke": {
+          "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+          "Report": "Test_Run/Direct_Scope_Fix_20261119/Qualification.json",
+          "Result": "Checksum: 83539.12456293305\nRuntime: 0.02606740000192076\nChecksum: 83539.12456293305\nRuntime: 0.009802699991269037\n{\"Exact\": true, \"Stats\": {\"Execution\": {\"Reason\": \"native_parallel\", \"Actual_Team\": 2, \"Native_Entry\": true}, \"Totals\": {\"Native_Entries\": 1, \"Parallel_Entries\": 1, \"Maximum_Team\": 2}}}"
+        }
+      },
+      "Cython_SHA256": "d1a3bd0f3f23ad84d5f62302090dd585ab2edb6f017013625fbc66d81db4562d",
+      "Generation": {
+        "Build_Id": "0c683325ac3781ac51f5a9023fe9e776f9e295e038e509026747a1b27424a450",
+        "Select": false,
+        "OpenMP": true
+      },
+      "Generated_Present": true
+    }
+  ],
+  "Validation_Summary": {
+    "passed": 78,
+    "failed": 0,
+    "pending": 0
+  }
+}

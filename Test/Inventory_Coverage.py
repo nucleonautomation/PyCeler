@@ -6,7 +6,7 @@ import sys
 import tempfile
 from dataclasses import asdict
 from pathlib import Path
-
+# Test support/workload for inventory coverage.
 _Root = Path(__file__).resolve().parents[1]
 if str(_Root) not in sys.path:
     sys.path.insert(0, str(_Root))

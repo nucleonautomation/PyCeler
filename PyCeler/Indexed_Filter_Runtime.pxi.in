@@ -1,0 +1,75 @@
+from cpython.buffer cimport PyObject_GetBuffer as FILTER_PREFIXGet, PyBuffer_Release as FILTER_PREFIXRelease, PyBUF_FORMAT as FILTER_PREFIXFormat, PyBUF_STRIDES as FILTER_PREFIXStrides
+from cpython.list cimport PyList_CheckExact as FILTER_PREFIXList, PyList_Size as FILTER_PREFIXLength
+from cpython.long cimport PyLong_CheckExact as FILTER_PREFIXInt
+from cpython.float cimport PyFloat_CheckExact as FILTER_PREFIXFloat
+from cpython.number cimport PyNumber_Power as FILTER_PREFIXPower
+from libc.string cimport memcpy as FILTER_PREFIXCopy
+from libc.stdint cimport uint64_t as FILTER_PREFIXBits
+import sys as FILTER_PREFIXSystem
+cdef object FILTER_PREFIXArray = None
+
+# Read unaligned and strided views safely. The exponent window proves every square and sum is finite and normal or zero.
+cdef inline bint FILTER_PREFIXLoad(Py_buffer* View, Py_ssize_t Row, int Column, double* Value) noexcept:
+    cdef FILTER_PREFIXBits Bits, Magnitude, Exponent
+    FILTER_PREFIXCopy(&Bits, <char*>View.buf + Row * View.strides[0] + Column * View.strides[1], sizeof(double))
+    Magnitude = Bits & (<FILTER_PREFIXBits>0x7fffffffffffffff)
+    Exponent = Magnitude >> 52
+    if Magnitude and (Exponent < 823 or Exponent > 1223):
+        return False
+    FILTER_PREFIXCopy(Value, &Bits, sizeof(double))
+    return True
+
+cdef bint FILTER_PREFIXTry(object Items, object Table, object Anchor, object Threshold, object Output, object Policy) except -1:
+    global FILTER_PREFIXArray
+    cdef Py_buffer View
+    cdef Py_ssize_t Fixed, Row, Position, Count
+    cdef double Left, Right, Limit
+    cdef volatile double Delta, FILTER_SQUARES
+    cdef list Matches
+    if not FILTER_PREFIXList(Items) or not FILTER_PREFIXList(Output) or Items is Output:
+        return False
+    Count = FILTER_PREFIXLength(Items)
+    if Count == 0:
+        return True
+    if Count > 4096 or not FILTER_PREFIXInt(Anchor) or not FILTER_PREFIXFloat(Threshold):
+        return False
+    FILTER_POLICY
+    if FILTER_PREFIXArray is None:
+        Core = FILTER_PREFIXSystem.modules.get('numpy._core.multiarray') or FILTER_PREFIXSystem.modules.get('numpy.core.multiarray')
+        if Core is None:
+            return False
+        FILTER_PREFIXArray = Core.ndarray
+    if _Pyceler_Python_Builtins.type(Table) is not FILTER_PREFIXArray:
+        return False
+    Limit = Threshold
+    if not (-1e60 <= Limit <= 1e60) or (Limit != 0 and -1e-60 < Limit < 1e-60):
+        return False
+    if FILTER_SQUARED:
+        Limit = FILTER_PREFIXPower(Threshold, 2, None)
+    try:
+        FILTER_PREFIXGet(Table, &View, FILTER_PREFIXFormat | FILTER_PREFIXStrides)
+    except (_Pyceler_Python_Builtins.BufferError, _Pyceler_Python_Builtins.ValueError):
+        return False
+    try:
+        if View.ndim != 2 or View.itemsize != sizeof(double) or View.format == NULL or View.format[0] != 100 or View.format[1] != 0:
+            return False
+        if View.shape[1] <= FILTER_COLUMN or not 0 <= Anchor < View.shape[0]:
+            return False
+        Fixed = Anchor
+        Matches = []
+        Position = 0
+        while Position < Count:
+            Item = (<list>Items)[Position]
+            if not FILTER_PREFIXInt(Item) or not 0 <= Item < View.shape[0]:
+                return False
+            Row = Item
+            Position += 1
+            if FILTER_SKIP and Row == Fixed:
+                continue
+            FILTER_ARITHMETIC
+        # Release the buffer and finish all checks before changing the caller's output.
+    finally:
+        FILTER_PREFIXRelease(&View)
+    (<list>Output).extend(Matches)
+    _Pyceler_Dispatch_Event('Execution', 'native_serial', 1)
+    return True

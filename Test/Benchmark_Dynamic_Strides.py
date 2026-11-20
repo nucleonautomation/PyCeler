@@ -14,7 +14,7 @@ from pathlib import Path
 from time import perf_counter, perf_counter_ns
 from Benchmark_Math import _Load
 from Dynamic_Scalar_Strides_Probe import _Value
-
+# Measurement harness for dynamic strides.
 def _Source(Fixture):
     Original = next(Node for Node in ast.parse(Fixture.read_text(encoding="utf-8")).body if isinstance(Node, ast.FunctionDef) and Node.name == "Mixed")
     Functions = []
@@ -43,7 +43,7 @@ def _Call(Module, Name, Size, Stride, Period, Native, Timed=False, Observe=False
     Start = perf_counter_ns() if Timed else 0
     Result = Function(0, Size * Stride, Stride, 17, Events, Callback)
     Duration = perf_counter_ns() - Start if Timed else 0
-    Observation = {}
+    Observation = {}  # Record actual native entry separately from correctness of the returned result.
     if Native:
         After = Statistics()
         Interval = Period // math.gcd(Stride, Period)

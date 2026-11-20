@@ -58,8 +58,8 @@ cdef void _Find_Module_Scalars(object Tree, list Findings, dict Edits) except *:
             if Reporting is not None and any(isinstance(Part, (ast.Break, ast.Continue, ast.Return, ast.Yield, ast.YieldFrom, ast.Await, ast.Nonlocal)) for Part in _Rank_Parts(Reporting)):
                 continue
             Plan['Kind'] = 'module_scalar'
-            Plan['Module_Reduction'] = _Module_Reduction_Plan(Plan)
-            Plan['Transformations'] = ('Native module arithmetic', 'Per-iteration observable-state continuation', 'Bounded ordered native spans')
+            Plan['Module_Reduction'] = None if Plan.get('Scalar_Math') else _Module_Reduction_Plan(Plan)
+            Plan['Transformations'] += ('Native module arithmetic', 'Per-iteration observable-state continuation', 'Bounded ordered native spans')
             if Plan['Module_Reduction'] is not None:
                 Plan['Transformations'] += ('Exact OpenMP reduction spans',)
             Parameters = tuple('_Pyceler_Argument_' + str(Position) for Position in range(len(Plan['Names'])))
@@ -80,11 +80,18 @@ cdef void _Find_Module_Scalars(object Tree, list Findings, dict Edits) except *:
     for Position, Finding in enumerate(Findings):
         Plan = Updates.get(Finding.Line)
         if Plan is not None:
+            if Plan.get('Scalar_Math'):
+                Findings[Position] = replace(Finding, Classification='Module_Scalar_Region', Change='Ordered native scalar math recurrence',
+                    Reason='Native float64 state and guarded math calls preserve iteration order; bounded spans publish globals or replay the original loop on incompatible inputs.',
+                    Transformations=Plan['Transformations'], Constraints=('Exact float inputs and verified math bindings', 'Dependent recurrence executes serially', 'Observable state committed at bounded checkpoints'))
+                continue
             Findings[Position] = replace(Finding, Classification='Module_Scalar_Region', Change='Guarded native module arithmetic with eligible OpenMP reduction spans',
                 Reason='Checked native arithmetic publishes observable globals. Exact reductions use bounded serial/OpenMP spans only while no Python thread or custom signal observer is present; callbacks retain their original order.',
                 Transformations=Plan['Transformations'], Constraints=('Checked integer or ordered floating arithmetic with Python continuation', 'Global state committed before signal checks', 'Parallel work requires an exact reduction proof'))
-
+# Extract scalar work at module scope without hiding changes to visible globals.
 cdef str _Module_Scalar_Kernel(dict Plan, int Line, bint Parallel, str Filename, str Prefix, bint Measured=False, tuple Future_Features=()):
+    if Plan.get('Scalar_Math'):
+        return _Scalar_Math_Module_Kernel(Plan, Line, Filename, Prefix, Measured, Future_Features, _Module_Constant_Kernel(Line))
     Inputs = tuple(dict.fromkeys([*Plan['Inputs'], Plan['Index']]))
     Outputs = tuple(Name for Name in Plan['Outputs'] if Name != Plan['Index'])
     Slots = Plan['Slots']

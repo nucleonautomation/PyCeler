@@ -1,5 +1,5 @@
 raise RuntimeError("Static analysis executed the target module.")
-
+# Test support/workload for static only.
 class Example:
     def Clear(self, Buffer):
         for Position in range(len(Buffer)):

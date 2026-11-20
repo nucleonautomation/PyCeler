@@ -8,7 +8,7 @@ from dataclasses import replace
 from pathlib import Path
 from .Native_Build import _Build, _Interpreter, _Temporary_Workspace
 from .Runtime_Resources import _Resource
-
+# Apply conservative optimizations to existing typed Cython and measure eligible alternatives.
 def _Plans(Text, File=None):
     try:
         Tokens = list(tokenize.generate_tokens(io.StringIO(Text).readline))

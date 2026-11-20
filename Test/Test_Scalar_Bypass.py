@@ -4,7 +4,7 @@ import copy
 import re
 import unittest
 from pathlib import Path
-
+# Regression checks for scalar bypass.
 class Scalar_Bypass(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
     _Source = """def Mixed(Begin, End, Stride, Initial, Events, Callback):

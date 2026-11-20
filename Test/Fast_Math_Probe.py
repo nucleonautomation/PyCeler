@@ -7,7 +7,7 @@ import math
 import sys
 from pathlib import Path
 import numpy as N
-
+# Isolated verification for math bindings, domains and floating environments.
 def _Load(Name, Path):
     Spec = importlib.util.spec_from_file_location(Name, Path)
     Module = importlib.util.module_from_spec(Spec)
@@ -227,7 +227,7 @@ if Parallel:
             Native._Test_Worker_Restore_Controls(*Controls)
 sys.path.insert(0, sys.argv[4])
 from PyCeler.Selection_Worker import _Observe
-Observation = {}
+Observation = {}  # Record actual native entry separately from correctness of the returned result.
 Before = _Stats("Map_sin")["Native_Elements"]
 Outcome, Fallback = _Observe(Native.Map_sin, (Values, N.zeros_like(Values)), "Map_sin", Observation)
 assert not Fallback and Observation["Native_Entry"] and Observation["Actual_Team"] == (2 if Parallel else 1), Observation

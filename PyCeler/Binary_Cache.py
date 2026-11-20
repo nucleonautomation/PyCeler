@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from .Selection_Cache import _Digest, _Toolchain
 from .Source_Inputs import _Dependencies
-
+# Reuse native artifacts only when source, dependency and toolchain fingerprints still match.
 def _Groups(Paths, Linked):
     Groups = {}
     for Value in Paths:

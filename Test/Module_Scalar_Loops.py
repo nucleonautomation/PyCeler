@@ -7,7 +7,7 @@ for Index in range(Iterations):
     if Index % 8 == 0 and Index != 0:
         Events.append((Index, Total))
 Results["Progress"] = (Total, Index, tuple(Events))
-
+# Test support/workload for observable module globals and partial failures.
 def Callback():
     global Total, Index, Iterations
     Events.append((Index, Total))

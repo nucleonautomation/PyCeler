@@ -1,5 +1,5 @@
 import socket
-
+# Test support/workload for geometry, labels and stream boundaries.
 def Choose_Labels(Distances, Labels, Rows, Groups):
     for Row in range(Rows):
         Best = 0

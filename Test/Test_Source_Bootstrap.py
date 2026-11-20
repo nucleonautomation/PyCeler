@@ -10,7 +10,7 @@ import Compile
 from importlib.machinery import EXTENSION_SUFFIXES
 from pathlib import Path
 from unittest.mock import patch
-
+# Regression checks for source discovery and dependency staging.
 class Source_Bootstrap(unittest.TestCase):
     _Root = Path(__file__).resolve().parent.parent
     _Run_Root = _Root / "Test_Run"
@@ -45,7 +45,7 @@ class Source_Bootstrap(unittest.TestCase):
 
     def test_Checkout_Requires_A_Complete_Built_Package(self):
         self._Run_Root.mkdir(exist_ok=True)
-        with Temporary_Directory(prefix="Bootstrap_Missing_", dir=self._Run_Root) as Folder, patch.dict(os.environ, {}, clear=True):
+        with Temporary_Directory(prefix="Bootstrap_Missing_", dir=self._Run_Root) as Folder, patch.dict(os.environ, {}, clear=True):  # Keep generated sources and binaries outside the maintained fixture tree.
             with self.assertRaisesRegex(ImportError, "python -B Compile.py"):
                 self._Execute(Path(Folder), None)
 
@@ -56,7 +56,7 @@ class Source_Bootstrap(unittest.TestCase):
             Built = Root / "Build" / "Lib" / "PyCeler"
             Package = self._Execute(Root, Built)
             self.assertEqual(Package.__path__, [str(Built)])
-            self.assertEqual(Package.__version__, "0.4.0")
+            self.assertEqual(Package.__version__, "0.5.0")
             self.assertEqual(Package.__build_id__, "a" * 64)
             self.assertEqual(Package.__all__, ["Analyze", "Convert", "Compile", "Loop_Finding"])
 

@@ -39,7 +39,7 @@ cdef list _Structural_Interval_Code(dict Plan, str Name):
             if Integral and Kind in ("+", "-", "*"):
                 Lines.extend([f"    if Floating and L{Number} == 0:", "        return False"])
     return [*Lines, "    return True", ""]
-
+# Generate interval and storage checks required before applying structural loop transformations.
 cdef list _Structural_Guard_Code(dict Plan, str Name):
     Names = Plan["Names"]
     Arrays = sorted(Names.index(Value) for Value in Plan["Arrays"] if Value in Names)

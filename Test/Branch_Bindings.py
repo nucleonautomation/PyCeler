@@ -12,7 +12,7 @@ def Choose(Flag, Other, First, Second, Output, Events, Callback):
     Events.append("after")
     Callback(Source, Output, Events)
     return Output
-
+# Test support/workload for branch-local bindings, callbacks and observable order.
 def Nested(Flag, Other, First, Second, Output, Events, Callback):
     if Flag:
         if Other:

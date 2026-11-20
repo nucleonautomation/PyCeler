@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 from Test.Workspace import Temporary_Directory
 from PyCeler import Compile
-
+# Regression checks for cache identity and invalidation.
 class Binary_Cache(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
@@ -100,7 +100,7 @@ class Binary_Cache(unittest.TestCase):
             with self._Without_Worker():
                 Compile(Source, self._Folder / "Cached_Header", **self._Options)
             Header.write_text("static int Cache_Value(void) { return 9; }\n", encoding="utf-8")
-            Binary = Compile(Source, self._Folder / "Updated_Header", **self._Options)
+            Binary = Compile(Source, self._Folder / "Updated_Header", **self._Options)  # Build a real extension; a static finding alone does not prove native execution.
             self.assertEqual(self._Summary()[1]["Modules"][0]["Status"], "miss")
             Program = "import sys; sys.path.insert(0,sys.argv[1]); import Header; assert Header.Read()==9"
             Result = subprocess.run([sys.executable, "-I", "-B", "-c", Program, str(Binary.parent)], capture_output=True, text=True)

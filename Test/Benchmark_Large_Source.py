@@ -9,7 +9,7 @@ import sys
 import tempfile
 from pathlib import Path
 from time import perf_counter
-
+# Measurement harness for large source.
 def _Source(Functions):
     Sections = []
     for Index in range(Functions):

@@ -10,8 +10,8 @@ import tempfile
 import time
 from contextlib import contextmanager
 from pathlib import Path
-
-class _Build_Timeout(RuntimeError):
+# Stage native builds, enforce process deadlines and record compiler provenance and diagnostics.
+class _Build_Timeout(RuntimeError):  # Timeout is distinct from a compiler error so cleanup and diagnostics remain actionable.
 
     def __init__(self, Seconds, Elapsed, Log, Cleanup):
         self.Seconds, self.Elapsed, self.Log, self.Cleanup = Seconds, Elapsed, Path(Log), Cleanup
@@ -41,7 +41,7 @@ def _Deadline_Exception_Log(Stream, Record, Error):
         if Error is None:
             raise
         Error.add_note("Build deadline log could not be written: " + str(Log_Error))
-
+# A timed-out build must also stop its compiler children, not just the Python wrapper.
 def _Run_Bounded_Build(Command, Directory, Stream, Seconds):
     Started = time.monotonic()
     _Deadline_Log(Stream, dict(Status="starting", Seconds=Seconds, Ownership="job" if os.name == "nt" else "session"))
@@ -119,7 +119,7 @@ def _Windows_Job_Cleanup(Api, C, Job, Accounting):
         if time.monotonic() >= Deadline:
             return f"{State.ActiveProcesses} owned job processes did not exit within cleanup grace"
         time.sleep(0.01)
-
+# Use a Windows job object so timeout cleanup reaches the complete compiler process tree.
 def _Windows_Bounded_Build(Command, Directory, Stream, Deadline):
     import msvcrt
     C, W, Api, Startup, Startup_Extended, Process, Extended_Limits, Accounting = _Windows_Build_API()
@@ -202,7 +202,7 @@ def _Windows_Bounded_Build(Command, Directory, Stream, Deadline):
                 Api.DeleteProcThreadAttributeList(Attributes)
             if Job:
                 Api.CloseHandle(Job)
-
+# Track child-process state without confusing unrelated processes with this build.
 def _Posix_Child_State(Process):
     try:
         return os.waitid(os.P_PID, Process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
@@ -367,7 +367,7 @@ def _Interpreter(Mode, Version):
     if Mode == "abi" or Version == Current:
         return [sys.executable], Version
     return (["py", "-" + Version] if os.name == "nt" else ["python" + Version]), Version
-
+# Compilation occurs in an isolated staging area before any measured or ordinary module execution.
 def _Build(Stage, Paths, Output, Mode, Version, Link, OpenMP, Reports=(), Package_Loaders=False, Cache=False):
     if Mode == "auto":
         Mode = "abi" if sys.version_info >= (3, 11) else "simple"

@@ -10,7 +10,7 @@ from PyCeler import Analyze, Compile, Convert
 from PyCeler.Selection_Policy import _Selection_Table
 from PyCeler.Selection_Worker import _Cases, _Representative_Cases
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for dynamic range steps and ordered scalar arithmetic.
 class Dynamic_Scalar_Strides(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
     _Fixture = _Root / "Test" / "Dynamic_Scalar_Strides.py"
@@ -41,7 +41,7 @@ class Dynamic_Scalar_Strides(unittest.TestCase):
     def test_Native_Strides_Preserve_Range_Snapshots_And_Continuation(self):
         for Parallel in (False, True):
             with self.subTest(OpenMP=Parallel):
-                Binary = Compile(self._Fixture, self._Folder / ("OpenMP" if Parallel else "Serial"), Select=False, OpenMP=Parallel)
+                Binary = Compile(self._Fixture, self._Folder / ("OpenMP" if Parallel else "Serial"), Select=False, OpenMP=Parallel)  # Build a real extension; a static finding alone does not prove native execution.
                 Process = subprocess.run([sys.executable, "-I", "-B", str(self._Root / "Test" / "Dynamic_Scalar_Strides_Probe.py"), str(Binary), str(self._Fixture)], capture_output=True, text=True, timeout=120)
                 self.assertEqual(Process.returncode, 0, Process.stdout + Process.stderr)
                 Report = json.loads(Process.stdout)

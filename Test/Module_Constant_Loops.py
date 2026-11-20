@@ -1,4 +1,4 @@
-Marker = 1000
+Marker = 1000  # Test support/workload for module literals and floating environment state.
 Finite = 1.25
 Zero = -0.0
 Infinite = 1e10000

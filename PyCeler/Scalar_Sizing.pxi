@@ -8,7 +8,7 @@ cdef object _Scalar_Size_Operand(object Node, tuple Names):
     if isinstance(Node, ast.Constant) and type(Node.value) is int:
         return False, Sign * Node.value
     return None
-
+# Estimate scalar workload size under guards so runtime dispatch can use measured size bands.
 cdef set _Scalar_Size_Overwritten(object Function, object Loop):
     if Function is None:
         return set()

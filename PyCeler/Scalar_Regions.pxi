@@ -10,7 +10,7 @@ cdef object _Scalar_Progress(object Node, str Index):
     if not isinstance(Left.right, ast.Constant) or type(Left.right.value) is not int or Left.right.value <= 0:
         return None
     return Left.right.value
-
+# Extract numeric spans around callbacks and control boundaries with original continuation state.
 cdef void _Scalar_Region_Flow(list Statements, set Defined, set Fresh, list Inputs, list Outputs) except *:
     for Node in Statements:
         Assignments = []
@@ -73,6 +73,8 @@ cdef object _Scalar_Region_Plan(object Function, object Loop, set Available, str
     if not Statements:
         return None
     Parts = [Part for Statement in Statements for Part in ast.walk(Statement)]
+    if any(isinstance(Part, ast.Call) for Part in Parts):
+        return _Scalar_Math_Plan(Function, Loop, Available, Scope)
     if any(isinstance(Part, (ast.For, ast.While, ast.Call, ast.Return, ast.Break, ast.Continue, ast.Raise, ast.Try, ast.With,
                               ast.Yield, ast.YieldFrom, ast.NamedExpr, ast.Subscript, ast.Attribute)) for Part in Parts):
         return None

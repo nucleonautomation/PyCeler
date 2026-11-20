@@ -9,7 +9,7 @@ def Clipped_Median(Input, Output):
             Values.sort()
             Output[Row, Column] = Values[len(Values) // 2]
     return Output
-
+# Test support/workload for numeric extensions.
 def Channel_Distance(Red, Green, Blue, Output, Target_Red, Target_Green, Target_Blue):
     for Index in range(len(Output)):
         Delta_Red = Red[Index] - Target_Red

@@ -1,5 +1,5 @@
 raise RuntimeError("Diagnostic analysis must not execute this module.")
-
+# Test support/workload for diagnostic.
 def Rejected_With_Calls(Iterations, Callback):
     Total = 0
     for Index in range(Iterations):

@@ -1,4 +1,4 @@
-@_Pyceler_Bounds(False)
+@_Pyceler_Bounds(False)  # Clear eligible contiguous buffers after validating dtype, writability and exact zero semantics.
 @_Pyceler_Wrap(False)
 cdef bint _Pyceler_Clear(object Values, object Baseline, bint Allow_Threads) except -1:
     import sys as _Pyceler_Sys

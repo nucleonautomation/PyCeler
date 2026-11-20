@@ -5,7 +5,7 @@ import struct
 import tokenize
 from .Math_Registry import _Math_Calls, _Math_Inspector, _Registry_Version
 from .Fast_Math import _Fast_Math_Plan, _Fast_Math_Kernel
-
+# Preserve original library-call semantics for math maps and keep literal-object identities explicit.
 def _Math_Literal(Node):
     if isinstance(Node, ast.Constant):
         return type(Node.value) in (int, float, complex, bool, str, bytes, type(None), type(Ellipsis))
@@ -220,11 +220,7 @@ class _Module_Anchor_Rewrite(ast.NodeTransformer):
         return ast.copy_location(ast.Pass(), Node) if any(Alias.name == "*" for Alias in Node.names) else Node
 
 def _Module_Constant_Anchor(Node, Line, Prefix="_Pyceler_"):
-    Loop = _Module_Anchor_Rewrite().visit(copy.deepcopy(Node))
-    Loop.orelse = []
-    Function = ast.parse(f"def {Prefix}Module_Constants_{Line}():\n    pass").body[0]
-    Function.body = [Loop]
-    return ast.unparse(ast.fix_missing_locations(Function))
+    return f"def {Prefix}Module_Constants_{Line}():\n    pass"
 
 def _Native_Prefix(Source, Prefix):
     if Prefix == "_Pyceler_":
@@ -247,9 +243,13 @@ def _Native_Prefix(Source, Prefix):
                 Position -= 1
         if Replace:
             Changes.append((Offsets[Token.start[0] - 1] + Token.start[1], Offsets[Token.end[0] - 1] + Token.end[1], Value.replace("_Pyceler_", Prefix)))
-    for Start, End, Value in reversed(Changes):
-        Source = Source[:Start] + Value + Source[End:]
-    return Source
+    Parts = []
+    Position = 0
+    for Start, End, Value in Changes:
+        Parts.extend((Source[Position:Start], Value))
+        Position = End
+    Parts.append(Source[Position:])
+    return ''.join(Parts)
 
 def _Module_Constant_Kernel(Line):
     Prefix = f"_Pyceler_Module_Constants_{Line}_"
@@ -272,7 +272,7 @@ def _Module_Constant_Kernel(Line):
                      "    if Key is not None and Key in Pool:", "        return Pool[Key]", "    if Kind is B.tuple:",
                      f"        return B.tuple({Prefix}Value(Item, Pool, Code_Type) for Item in Value)", "    if Kind is B.frozenset:",
                      f"        return B.frozenset({Prefix}Value(Item, Pool, Code_Type) for Item in Value)", "    return Value",
-                     f"cdef object {Prefix}Code(object Code, dict Pool):", "    import builtins as B", "    cdef object Code_Type = B.type(Code)",
+                     f"cdef object {Prefix}Code(object Code, dict Pool):", "    if callable(Code):", "        return Code", "    import builtins as B", "    cdef object Code_Type = B.type(Code)",
                      f"    return Code.replace(co_consts=B.tuple({Prefix}Value(Value, Pool, Code_Type) for Value in Code.co_consts))"]) + "\n"
 
 def _Math_Map_Kernel(Plan, Line, Parallel=False):
@@ -326,7 +326,7 @@ def _Math_Map_Kernel(Plan, Line, Parallel=False):
               "    if Found is not Missing:", "        return Found", "    if type(Value) is tuple:",
               "        for Item in Value:", f"            Values.append({Prefix}_Canonical(Item, Pool))", "        return tuple(Values)",
               "    return Value", f"cdef object _Pyceler_Math_Baseline_{Line}(object Baseline, tuple Pool):",
-              "    cdef list Values = []", "    cdef object Value", "    for Value in Baseline.__code__.co_consts:",
+              "    cdef list Values = []", "    cdef object Value", "    if hasattr(Baseline, '_Pyceler_Constants'):", "        return Baseline", "    for Value in Baseline.__code__.co_consts:",
               f"        Values.append({Prefix}_Canonical(Value, Pool))", "    Baseline.__code__ = Baseline.__code__.replace(co_consts=tuple(Values))", "    return Baseline",
               f"cdef object _Pyceler_Math_Map_{Line}({', '.join('object ' + Name for Name in Parameters)}, object Baseline, bint Allow_Threads, int Thread_Count):",
               "    import sys as _Pyceler_Math_Sys", "    import builtins as _Pyceler_Math_B",
@@ -348,7 +348,7 @@ def _Math_Map_Kernel(Plan, Line, Parallel=False):
     for Name in sorted(Plan["Scalars"]):
         Source.extend([f"    if _Pyceler_Math_B.type({Rewrite._Locals[Name]}) not in (_Pyceler_Math_B.int, _Pyceler_Math_B.float, _Pyceler_Math_B.complex, _Pyceler_Math_B.bool):", f"        return Baseline({Arguments})"])
     for Index, Value in enumerate(Rewrite._Constants):
-        Source.extend([f"    _Pyceler_Math_Literal_{Line}_{Index} = {Prefix}_Literal(Baseline.__code__.co_consts, {_Math_Literal_Source(Value)}, _Pyceler_Math_Missing, True)",
+        Source.extend([f"    _Pyceler_Math_Literal_{Line}_{Index} = {Prefix}_Literal(getattr(Baseline, '_Pyceler_Constants', Baseline.__code__.co_consts), {_Math_Literal_Source(Value)}, _Pyceler_Math_Missing, True)",
                        f"    if _Pyceler_Math_Literal_{Line}_{Index} is _Pyceler_Math_Missing:", f"        return Baseline({Arguments})"])
     if Fast:
         Source.extend(["    _Pyceler_Math_Iterator = " + Iterator,

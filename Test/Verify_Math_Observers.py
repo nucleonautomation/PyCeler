@@ -8,7 +8,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-
+# Isolated verification for verify math observers.
 def _Digest(File):
     return hashlib.sha256(File.read_bytes()).hexdigest()
 

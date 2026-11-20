@@ -5,7 +5,7 @@ import random
 import sys
 from pathlib import Path
 import numpy as np
-
+# Isolated verification for randomized.
 def _Load(Name, File):
     Spec = importlib.util.spec_from_file_location(Name + ".Structural_Loops", File)
     Module = importlib.util.module_from_spec(Spec)

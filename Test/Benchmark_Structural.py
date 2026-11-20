@@ -9,7 +9,7 @@ from pathlib import Path
 from time import perf_counter_ns
 import numpy as Numpy
 import Structural_Workloads
-
+# Measurement harness for dependency-safe structural loop rewrites.
 def _Load(Name, File):
     Spec = importlib.util.spec_from_file_location(Name, File)
     Module = importlib.util.module_from_spec(Spec)

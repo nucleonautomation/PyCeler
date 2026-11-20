@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 from PyCeler import Analyze, Compile, Convert
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for nested state regions.
 class Nested_State_Regions(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
     _Body = """for Outer in range(Outer_Count):
@@ -66,7 +66,7 @@ class Nested_State_Regions(unittest.TestCase):
         Expected = self._Observe(Source, ["Results"])
         for Parallel in (False, True):
             with self.subTest(Parallel=Parallel), patch.dict(os.environ, PYCELER_BUILD_DIR=str(self._Folder / "Build"), OMP_NUM_THREADS="2"):
-                Binary = Compile(Source, self._Folder / ("OpenMP" if Parallel else "Serial"), Select=False, OpenMP=Parallel)
+                Binary = Compile(Source, self._Folder / ("OpenMP" if Parallel else "Serial"), Select=False, OpenMP=Parallel)  # Build a real extension; a static finding alone does not prove native execution.
                 Actual = self._Observe(Binary, ["Results"])
                 self.assertEqual(Actual["Values"], Expected["Values"])
                 self.assertEqual(Actual["Error"], Expected["Error"])
@@ -82,3 +82,26 @@ class Nested_State_Regions(unittest.TestCase):
         Partial = self._Folder / "Partial.py"
         Partial.write_text("Total = 1000\nfor Index in range(20):\n    if Index % 2:\n        Total += Index\n", encoding="utf-8")
         self.assertEqual(Analyze(Partial)[0].Change, "Keep original loop")
+
+    def test_Bitwise_Stateful_Rows_Preserve_Final_And_Partial_Globals(self):
+        Body = "for i in range(Rows):\n    row_total = Initial\n    for j in range(Columns):\n        x = (i * 7919 + j * 104729) % Modulus\n        y = (i * j + x * 31) % 999983\n        value = (x * x + y * y + i * j) % 10000019\n        if value % 11 == 0:\n            row_total += value * 7\n        elif value % 13 == 0:\n            row_total -= value * 3\n        elif value % 17 == 0:\n            row_total += value // 5\n        else:\n            row_total += (value % 997) * 2\n        if (x ^ y) % 23 == 0:\n            row_total ^= x & y\n        if row_total % 100003 == 0:\n            row_total += (i << 2) ^ (j >> 1)\n    checksum += row_total\n    if checksum % 99991 == 0:\n        total += i * 17\n    total += row_total\n"
+        Cases = [(5, 257, 0, 1000003), (0, 5, 7, 1000003), (3, 0, 7, 1000003), (3, 17, 2**63 - 1, 1000003), (3, 17, -(2**70), 1000003), (3, 17, 0, -1000003), (3, 17, 0, 0)]
+        Source = self._Folder / "Bitwise_Rows.py"
+        Text = "Results = []\n"
+        for Rows, Columns, Initial, Modulus in Cases:
+            Text += f"Rows = {Rows}\nColumns = {Columns}\nInitial = {Initial}\nModulus = {Modulus}\ntotal = 0\nchecksum = 0\nrow_total = -17\ni = -19\nj = -23\nx = -29\ny = -31\nvalue = -37\ntry:\n"
+            Text += "".join("    " + Line + "\n" for Line in Body.splitlines())
+            Text += "except ZeroDivisionError:\n    Error = 'ZeroDivisionError'\nelse:\n    Error = None\nResults.append((total, checksum, row_total, i, j, x, y, value, Error))\n"
+        Source.write_text(Text, encoding="utf-8")
+        Findings = Analyze(Source)
+        self.assertEqual(sum(Item.Classification == "Module_Scalar_Region" for Item in Findings), len(Cases))
+        Expected = self._Observe(Source, ["Results"])
+        for Parallel in (False, True):
+            with patch.dict(os.environ, PYCELER_BUILD_DIR=str(self._Folder / "Build"), OMP_NUM_THREADS="2"):
+                Binary = Compile(Source, self._Folder / str(Parallel), Select=False, OpenMP=Parallel)
+                Actual = self._Observe(Binary, ["Results"])
+                self.assertEqual(Actual["Values"], Expected["Values"])
+                self.assertEqual(Actual["Error"], Expected["Error"])
+                self.assertGreater(Actual["Native"]["Native"], 0)
+                self.assertGreater(Actual["Native"]["Fallbacks"], 0)
+                self.assertEqual(Actual["Native"]["Team"], 1)

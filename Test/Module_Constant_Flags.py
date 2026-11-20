@@ -1,7 +1,7 @@
 Tiny = 5e-324
 Nested = (2.0, -0.0, 5e-324, 5e-324j)
 _Pyceler_Marker = "literal _Pyceler_marker!"
-
+# Test support/workload for module literals and floating environment state.
 def Same(First, Second):
     return First is Second
 

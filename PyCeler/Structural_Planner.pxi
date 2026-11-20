@@ -1,6 +1,6 @@
 class _Unsupported_Structure(Exception):
     pass
-
+# Plan structural rewrites only when access and dependency facts justify them.
 cdef int _Structural_Node(dict Plan, tuple Recipe, list Actions):
     Number = len(Plan["Nodes"])
     Plan["Nodes"].append(Recipe)

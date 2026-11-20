@@ -19,7 +19,7 @@ cdef object _Module_Reduction_Plan(dict Region):
     if Reduction is None:
         return None
     return dict(Target=Target, Inputs=Inputs, Names=Names, Step=Region["Step"], Reduction=Reduction, Index=Region["Index"])
-
+# Admit only proven-safe module reductions while retaining observable global state.
 cdef str _Module_Reduction_Kernel(dict Plan, int Line, bint Parallel):
     Slots = ["A" + str(Index) for Index in range(len(Plan["Names"]))]
     Term = f"_Pyceler_Module_Term_{Line}"

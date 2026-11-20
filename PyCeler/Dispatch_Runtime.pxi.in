@@ -1,6 +1,7 @@
 cdef bint _Pyceler_Dispatch_Enabled = False
 cdef dict _Pyceler_Dispatch_Info = {}
-
+cdef dict _Pyceler_Guard_Info = {}
+# Expose opt-in dispatch and guard counters without changing ordinary numerical results.
 def _Pyceler_Dispatch_Stats(Enabled=None, Reset=False):
     import builtins as B
     global _Pyceler_Dispatch_Enabled
@@ -10,11 +11,26 @@ def _Pyceler_Dispatch_Stats(Enabled=None, Reset=False):
         _Pyceler_Dispatch_Enabled = Enabled
     if Reset:
         _Pyceler_Dispatch_Info.clear()
+        _Pyceler_Guard_Info.clear()
     return {Stage: B.dict(Details) for Stage, Details in _Pyceler_Dispatch_Info.items()}
+
+def _Pyceler_Guard_Stats():
+    return {Region: dict(Counts) for Region, Counts in _Pyceler_Guard_Info.items()}
+
+cdef void _Pyceler_Guard_Event(object Region, object Reason) except *:
+    if _Pyceler_Dispatch_Enabled:
+        Counts = _Pyceler_Guard_Info.setdefault(Region, {})
+        Counts[Reason] = Counts.get(Reason, 0) + 1
+        _Pyceler_Dispatch_Info['Guard'] = dict(Region=Region, Reason=Reason)
 
 cdef void _Pyceler_Dispatch_Event(object Stage, object Reason, object Team=None) except *:
     if _Pyceler_Dispatch_Enabled:
         Details = {"Reason": Reason, "Actual_Team": Team}
         if Stage == "Execution":
             Details["Native_Entry"] = Reason in ("native_serial", "native_parallel")
+            if Details['Native_Entry']:
+                Totals = _Pyceler_Dispatch_Info.setdefault('Totals', dict(Native_Entries=0, Parallel_Entries=0, Maximum_Team=0))
+                Totals['Native_Entries'] += 1
+                Totals['Parallel_Entries'] += Reason == 'native_parallel'
+                Totals['Maximum_Team'] = max(Totals['Maximum_Team'], Team or 1)
         _Pyceler_Dispatch_Info[Stage] = Details

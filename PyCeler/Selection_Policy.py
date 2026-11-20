@@ -1,7 +1,7 @@
 import math
 import statistics
 import os
-
+# Choose among validated candidates; noisy or inconclusive measurements retain the conservative choice.
 def _Candidate_Code(Name):
     if Name in ("Python", "Serial", "OpenMP", "Optimized", "Tiled"):
         return {"Python": 0, "Serial": 1, "OpenMP": 2, "Optimized": 3, "Tiled": 4}[Name]
@@ -46,26 +46,27 @@ def _Explain_Selection(Item):
         Winner = Case.get("Dispatch_Winner", "Python")
         Timing = Case["Timings"].get(Winner)
         Python = Case["Timings"].get("Python")
+        Extrapolated = bool(Case.get('Probe_Constraint') and not Case.get('Representative') and 'Representative_Workload' not in Item and Winner != 'Python')
         Decisions.append(dict(Dtype=Case["Key"], Size=Case["Size"], Shape=Case.get("Shape"), Winner=Winner,
                               Speedup=Python["Median_Ns"] / Timing["Median_Ns"] if Python and Timing else None,
-                              Reason="Validated complete-call measurements support promotion in this workload band" if Winner != "Python" else "No eligible candidate established the required gain across this band and its holdouts"))
+                              Reason='Reference raises; exception behavior was checked but supplies no timing evidence; runtime guards still apply' if Case.get('Reference_Outcome') == 'raise' else 'Unmeasured synthetic size extrapolates a completed measurement band; runtime correctness guards still apply' if Extrapolated else "Validated complete-call measurements support promotion in this workload band" if Winner != "Python" else "No eligible candidate established the required gain across this band and its holdouts"))
     Item["Summary"] = dict(Function=Item["Function"], Transformations=Item.get("Transformations", []),
                            Baseline="Python", Timing_Includes="Function call, runtime checks, dispatch and kernel", Decisions=Decisions,
                            Skipped_Candidates=Item.get("Skipped_Candidates", {}), Fallback_Reason=Item.get("Reason"))
 
-def _Promotes(Case, Previous, Candidate, Gain):
+def _Promotes(Case, Previous, Candidate, Gain):  # A winning sample must also satisfy the policy for variability and held-out cases.
     if Case["Validation"].get(Candidate) != "valid" or Previous not in Case["Timings"] or Candidate not in Case["Timings"]:
         return False
     Left = Case["Timings"][Previous]["Samples_Ns"]
     Right = Case["Timings"][Candidate]["Samples_Ns"]
     return bool(Left and len(Left) == len(Right) and statistics.median(Left) >= Gain * statistics.median(Right) and
                 sum(A >= Gain * B for A, B in zip(Left, Right)) >= math.ceil(0.75 * len(Right)))
-
+# Collapse validated timing cases into size bands without overriding holdout or correctness vetoes.
 def _Selection_Table(Cases, Gain, Bounded=False):
     Table = {}
     Invalid = {Name for Case in Cases for Name, Status in Case["Validation"].items() if Status.startswith("invalid")}
     for Key in sorted({Case["Key"] for Case in Cases}):
-        Group = [Case for Case in Cases if Case["Key"] == Key]
+        Group = [Case for Case in Cases if Case['Key'] == Key and Case.get('Reference_Outcome') != 'raise' and (Bounded or Case.get('Representative') or not Case.get('Probe_Constraint'))]
         Bounds = sorted({Case["Size"] for Case in Group if not Case.get("Holdout", False)})
         Bands = []
         for Index, Low in enumerate(Bounds):

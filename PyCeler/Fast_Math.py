@@ -1,6 +1,10 @@
 import ast
 import math
-
+from .Array_Expressions import _Array_Emit, _Array_Emitted_Tag
+from .Buffer_Indices import _Buffer_Offset, _Buffer_Coordinate
+from .Common_Calls import _Helper_Expression, _Helper_Emit
+from .Native_Observers import _Monitoring_Kernel
+# Lower supported numeric expressions with exact operation order, domain guards and explicit libm contracts.
 _Fast_Math_Version = 4
 _Fast_Unary = frozenset(("sqrt", "cbrt", "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh", "exp", "exp2", "expm1", "log", "log10", "log1p", "fabs", "isfinite", "isinf", "isnan", "erf", "erfc"))
 _Fast_Binary = frozenset(("copysign", "fmod"))
@@ -32,8 +36,73 @@ def _Fast_Imports(Plan):
             for Alias in Node.names:
                 Bindings[Alias.asname or Alias.name] = Alias.name
     return Bindings
-
+# The IR describes semantics, not just C syntax; unsupported operations keep their ordinary path.
 def _Fast_Expression(Node, Plan, Bindings, Inputs, Calls):
+    if isinstance(Node, ast.Name) and Node.id in Plan.get('Helper_Parameters', {}):
+        return Plan['Helper_Parameters'][Node.id]
+    if isinstance(Node, ast.Call) and isinstance(Node.func, ast.Name) and Node.func.id in Plan.get('Helpers', {}) and Node.func.id not in Plan.get('Helper_Parameters', {}):
+        return _Helper_Expression(Node, Plan, Bindings, Inputs, Calls, _Fast_Expression, _Fast_Unsupported)
+    if isinstance(Node, ast.Call) and isinstance(Node.func, ast.Name) and Node.func.id == 'abs' and 'abs' in Plan.get('Builtins', ()) and not Node.keywords and len(Node.args) == 1:
+        Value, Kind = _Fast_Expression(Node.args[0], Plan, Bindings, Inputs, Calls)
+        return ('absolute', Value), 'integer' if Kind == 'boolean' else Kind
+    if Plan.get('Array_Region') and isinstance(Node, ast.Call) and not Node.keywords:
+        if (getattr(Node, 'lineno', 0), getattr(Node, 'col_offset', 0)) in Plan['Random']:
+            return ('array_random',), 'float'
+        if isinstance(Node.func, ast.Name) and Node.func.id in Plan['Builtins']:
+            Values = [_Fast_Expression(Value, Plan, Bindings, Inputs, Calls) for Value in Node.args]
+            if Node.func.id in ('int', 'float') and len(Values) == 1:
+                return ('array_cast_' + Node.func.id, Values[0][0]), 'integer' if Node.func.id == 'int' else 'float'
+            if Node.func.id in ('min', 'max') and len(Values) >= 2:
+                Kinds = {Kind for Value, Kind in Values}  # Only a uniform operand kind can be inferred before runtime dtype guards.
+                return ('array_' + Node.func.id, *(Value for Value, Kind in Values)), next(iter(Kinds)) if len(Kinds) == 1 else 'float'
+            raise _Fast_Unsupported()
+    if Plan.get('Array_Region') and isinstance(Node, ast.BinOp) and isinstance(Node.op, ast.FloorDiv):
+        Left, Left_Kind = _Fast_Expression(Node.left, Plan, Bindings, Inputs, Calls)
+        Right, Right_Kind = _Fast_Expression(Node.right, Plan, Bindings, Inputs, Calls)
+        if Left_Kind not in ('integer', 'boolean') or Right_Kind not in ('integer', 'boolean'):  # Floor division here has Python-integer semantics; arbitrary float division is a different contract.
+            raise _Fast_Unsupported()
+        return ('array_floor_divide', Left, Right), 'integer'
+    if Plan.get("Numeric_Region") and isinstance(Node, ast.Subscript):
+        Coordinates, Root = [], Node
+        while isinstance(Root, ast.Subscript):
+            Coordinates.insert(0, Root.slice)
+            Root = Root.value
+        if not isinstance(Root, ast.Name) or Root.id not in Plan["Buffers"]:
+            raise _Fast_Unsupported()
+        Slot, Dimensions, Kind = Plan["Buffers"][Root.id]
+        if len(Coordinates) != Dimensions:
+            raise _Fast_Unsupported()
+        Values = [_Fast_Expression(Value, Plan, Bindings, Inputs, Calls) for Value in Coordinates]
+        if any(Type != 'integer' and not (Plan.get('Array_Region') and Type == 'float') for Value, Type in Values):
+            raise _Fast_Unsupported()
+        return ("buffer", Slot, tuple(('array_index', Value) if Type != 'integer' else Value for Value, Type in Values)), Kind
+    if Plan.get("Numeric_Region") and isinstance(Node, ast.Call) and isinstance(Node.func, ast.Name) and Node.func.id == "len" and len(Node.args) == 1 and not Node.keywords:
+        Argument = Node.args[0]
+        Coordinates = []
+        while isinstance(Argument, ast.Subscript):
+            Coordinates.insert(0, Argument.slice)
+            Argument = Argument.value
+        if isinstance(Argument, ast.Name) and Argument.id in Plan["Buffers"]:
+            Slot, Dimensions, Kind = Plan["Buffers"][Argument.id]
+            if len(Coordinates) < Dimensions:
+                Values = [_Fast_Expression(Value, Plan, Bindings, Inputs, Calls) for Value in Coordinates]
+                if all(Type == 'integer' or Plan.get('Array_Region') and Type == 'float' for Value, Type in Values):
+                    return ("dimension_path", Slot, tuple(('array_index', Value) if Type != 'integer' else Value for Value, Type in Values)), "integer"
+        raise _Fast_Unsupported()
+    if Plan.get("Numeric_Region") and isinstance(Node, ast.BinOp) and isinstance(Node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow)):
+        Left, Left_Kind = _Fast_Expression(Node.left, Plan, Bindings, Inputs, Calls)
+        Right, Right_Kind = _Fast_Expression(Node.right, Plan, Bindings, Inputs, Calls)
+        if isinstance(Node.op, ast.Pow):
+            try:
+                Exponent = ast.literal_eval(Node.right)
+            except (ValueError, TypeError):
+                raise _Fast_Unsupported()
+            if Left_Kind != "float" or type(Exponent) is not int or not -256 <= Exponent <= 256:
+                raise _Fast_Unsupported()
+            return ("python_power", Left, Exponent), "float"
+        Operator = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/"}[type(Node.op)]
+        Kind = "integer" if Left_Kind in ("integer", "boolean") and Right_Kind in ("integer", "boolean") and Operator != "/" else "float"
+        return ("checked_integer" if Kind == "integer" else "arithmetic", Operator, Left, Right), Kind
     if isinstance(Node, ast.Name) and Node.id in Plan.get("Local_Types", {}):
         return ("local", Plan["Local_Slots"].index(Node.id)), Plan["Local_Types"][Node.id]
     if isinstance(Node, ast.IfExp):
@@ -52,7 +121,9 @@ def _Fast_Expression(Node, Plan, Bindings, Inputs, Calls):
             return ("input", Inputs.index(Node.value.id)), "numpy"
     if isinstance(Node, ast.Constant) and type(Node.value) in (int, float):
         if type(Node.value) is float and math.isfinite(Node.value) or type(Node.value) is int and abs(Node.value) <= 2**53:
-            return ("literal", float(Node.value)), "float" if type(Node.value) is float else "integer"
+            return ("literal", Node.value if Plan.get('Array_Region') else float(Node.value)), "float" if type(Node.value) is float else "integer"
+    if Plan.get("Numeric_Region") and isinstance(Node, ast.Constant) and type(Node.value) is bool:
+        return ("literal", Node.value if Plan.get('Array_Region') else float(Node.value)), "boolean"
     if isinstance(Node, ast.UnaryOp) and isinstance(Node.op, (ast.UAdd, ast.USub)):
         Value, Kind = _Fast_Expression(Node.operand, Plan, Bindings, Inputs, Calls)
         if Kind == "numpy":
@@ -173,18 +244,31 @@ def _Fast_Math_Plan(Plan):
                 Call_Contracts=tuple((Name, _Fast_Call_Contracts[Name]["Arity"], _Fast_Call_Contracts[Name]["Return"], _Fast_Call_Contracts[Name]["Strategy"]) for Name in sorted({Name for Root, Name, Module in Calls})),
                 Backend_Requirements=tuple(sorted({_Fast_Call_Contracts[Name]["Backend"] for Root, Name, Module in Calls if _Fast_Call_Contracts[Name]["Backend"] is not None})),
                 Contract="Thin libm float64 calls with validated finite domains, exact original bindings, disjoint buffers, ordered continuation and bounded observer checks")
-
+# Do not reorder floating operations or omit guards merely because a C expression can be emitted.
 def _Fast_Emit(Node, Lines, Variables, Functions, Prefix):
     Kind = Node[0]
+    if Kind == 'native_value':
+        return Node[1]
+    if Kind == 'helper':
+        return _Helper_Emit(Node, Lines, Variables, Functions, Prefix, _Fast_Emit, _Array_Emitted_Tag)
+    if Kind.startswith('array_'):
+        return _Array_Emit(Node, Lines, Variables, Functions, Prefix, _Fast_Emit)
     if Kind == "input":
         return "X" + str(Node[1])
     if Kind == "local":
         return "L" + str(Node[1])
     if Kind == "literal":
-        return repr(Node[1])
+        return repr(float(Node[1]))
+    if Kind == "dimension":
+        return f"Shapes[{Node[1]}][{Node[2]}]"
     Target = "T" + str(len(Variables))
     Variables.append(Target)
-    if Kind == "conditional":
+    if Kind == 'dimension_path':
+        for Axis, Coordinate in enumerate(Node[2]):
+            Value = _Fast_Emit(Coordinate, Lines, Variables, Functions, Prefix)
+            _Buffer_Coordinate(Node[1], Axis, Value, Lines)
+        Lines.append(f'    {Target} = Shapes[{Node[1]}][{len(Node[2])}]')
+    elif Kind == "conditional":
         Test = _Fast_Emit(Node[1], Lines, Variables, Functions, Prefix)
         Lines.append(f"    if {Test}:")
         for Keyword, Branch in ((None, Node[2]), ("else:", Node[3])):
@@ -198,17 +282,30 @@ def _Fast_Emit(Node, Lines, Variables, Functions, Prefix):
         Left = _Fast_Emit(Node[2], Lines, Variables, Functions, Prefix)
         Right = _Fast_Emit(Node[3], Lines, Variables, Functions, Prefix)
         Lines.append(f"    {Target} = 1.0 if {Left} {Node[1]} {Right} else 0.0")
+    elif Kind == 'absolute':
+        Operand = _Fast_Emit(Node[1], Lines, Variables, Functions, Prefix)
+        Lines.append(f'    {Target} = {Prefix}fabs({Operand})')
     elif Kind in ("negative", "integer_negative"):
         Operand = _Fast_Emit(Node[1], Lines, Variables, Functions, Prefix)
         Value = f"0.0 if {Operand} == 0.0 else -{Operand}" if Kind == "integer_negative" else f"-{Operand}"
         Lines.append(f"    {Target} = {Value}")
-    elif Kind == "arithmetic":
+    elif Kind == "buffer":
+        Coordinates = [_Fast_Emit(Value, Lines, Variables, Functions, Prefix) for Value in Node[2]]
+        Offset = _Buffer_Offset(Node[1], Coordinates, Lines)
+        Lines.append(f"    {Target} = Buffers[{Node[1]}][{Offset}]")
+    elif Kind == "python_power":
+        Value = _Fast_Emit(Node[1], Lines, Variables, Functions, Prefix)
+        Lines.append(f"    {Target} = {Prefix}Python_Power({Value}, {Node[2]}, Valid)")
+        Lines.extend(["    if not Valid[0]:", "        return 0.0"])
+    elif Kind in ("arithmetic", "checked_integer"):
         Left = _Fast_Emit(Node[2], Lines, Variables, Functions, Prefix)
         Right = _Fast_Emit(Node[3], Lines, Variables, Functions, Prefix)
         if Node[1] == "/":
             Lines.extend([f"    if {Right} == 0.0:", "        Valid[0] = False", "        return 0.0"])
         Lines.append(f"    {Target} = {Left} {Node[1]} {Right}")
-        Lines.extend([f"    if not {Prefix}isfinite({Target}):", "        Valid[0] = False", "        return 0.0"])
+        Lines.extend([f"    if not {Prefix}Finite({Target}):", "        Valid[0] = False", "        return 0.0"])
+        if Kind == "checked_integer":
+            Lines.extend([f"    if {Target} < -1125899906842624.0 or {Target} > 1125899906842624.0:", "        Valid[0] = False", "        return 0.0"])
     else:
         Name = Node[1]
         Contract = _Fast_Call_Contracts[Name]
@@ -227,16 +324,16 @@ def _Fast_Emit(Node, Lines, Variables, Functions, Prefix):
             Lines.extend([f"    if {Domain}:", "        Valid[0] = False", "        return 0.0"])
         if Contract["Arity"] == 2:
             for Argument in Operands:
-                Lines.extend([f"    if not {Prefix}isfinite({Argument}) or ({Argument} == 0.0 and {Prefix}signbit({Argument})):", "        Valid[0] = False", "        return 0.0"])
+                Lines.extend([f"    if not {Prefix}Finite({Argument}) or ({Argument} == 0.0 and {Prefix}signbit({Argument})):", "        Valid[0] = False", "        return 0.0"])
             if Contract["Strategy"] == "Binary_Nonzero_Remainder":
                 Lines.extend([f"    if {Operands[1]} == 0.0:", "        Valid[0] = False", "        return 0.0"])
         if Contract["Strategy"] == "Classifier":
             Lines.append(f"    {Target} = 1.0 if {Prefix}{Name}({Operand}) else 0.0")
         else:
-            Lines.append(f"    {Prefix}Reset_Errno()")
+            Lines.append("    Error[0] = 0")
             Value = f"({Operand} if {Operand} == 0.0 else {Prefix}log1p({Operand}))" if Name == "log1p" else f"{Prefix}{Name}({', '.join(Operands)})"
             Lines.append(f"    {Target} = {Value}")
-            Lines.extend([f"    if not {Prefix}isfinite({Target}) or ({Prefix}Read_Errno() != 0 and not ({Prefix}Read_Errno() == {Prefix}ERANGE and {Prefix}fabs({Target}) < 1.5)):",
+            Lines.extend([f"    if not {Prefix}Finite({Target}) or (Error[0] != 0 and not (Error[0] == {Prefix}ERANGE and {Prefix}fabs({Target}) < 1.5)):",
                           "        Valid[0] = False", "        return 0.0"])
             if Contract["Strategy"] == "Binary_Nonzero_Remainder":
                 Lines.extend([f"    if {Target} == 0.0:", "        Valid[0] = False", "        return 0.0"])
@@ -257,7 +354,7 @@ def _Fast_Emit_Program(Program, Lines, Variables, Functions, Prefix, Indent="   
     if not Program:
         Lines.append(Indent + "pass")
 
-def _Fast_Math_Kernel(Plan, Line, Parallel=False):
+def _Fast_Math_Kernel(Plan, Line, Parallel=False, Preamble=False):
     Prefix = f"_Pyceler_Fast_{Line}_"
     Dimensions = Plan.get("Dimensions", 1)
     Functions = sorted(set(Plan["Functions"]) | {"isfinite", "isinf", "isnan", "fabs", "signbit"})
@@ -271,12 +368,14 @@ def _Fast_Math_Kernel(Plan, Line, Parallel=False):
              f'    int {Prefix}Get_Environment "fegetenv"({Prefix}Environment*) noexcept nogil', f'    int {Prefix}Set_Environment "fesetenv"(const {Prefix}Environment*) noexcept nogil',
              f'    ctypedef struct {Prefix}Exception_State "fexcept_t":', '        pass', f'    int {Prefix}All_Exceptions "FE_ALL_EXCEPT"',
              f'    int {Prefix}Test_Exceptions "fetestexcept"(int) noexcept nogil', f'    int {Prefix}Set_Exceptions "fesetexceptflag"(const {Prefix}Exception_State*, int) noexcept nogil',
-             'cdef extern from *:', '    """', '    #include <errno.h>',
-             f'    static void {Prefix}Reset_Errno(void) {{ errno = 0; }}', f'    static int {Prefix}Read_Errno(void) {{ return errno; }}',
+             'cdef extern from *:', '    """', '    #include <errno.h>', '    #include <stdint.h>', '    #include <string.h>',
+             f'    static inline int* {Prefix}Error_Address(void) {{ return &errno; }}',
+             f'    static inline int {Prefix}Finite(double Value) {{', '        uint64_t Bits;', '        memcpy(&Bits, &Value, sizeof(Bits));',
+             '        return (Bits & UINT64_C(0x7ff0000000000000)) != UINT64_C(0x7ff0000000000000);', '    }',
              f'    static int {Prefix}Prepare_Exceptions(int Flags, fexcept_t* Prepared) {{',
              '        fenv_t Saved;', '        int Result;', '        if (feholdexcept(&Saved) != 0) return -1;', '        Result = feraiseexcept(Flags);',
              '        if (Result == 0) Result = fegetexceptflag(Prepared, Flags);', '        if (fesetenv(&Saved) != 0) return -1;', '        return Result;', '    }',
-             '    """', f'    void {Prefix}Reset_Errno() noexcept nogil', f'    int {Prefix}Read_Errno() noexcept nogil',
+             '    """', f'    int* {Prefix}Error_Address() noexcept nogil', f'    bint {Prefix}Finite(double) noexcept nogil',
              f'    int {Prefix}Prepare_Exceptions(int, {Prefix}Exception_State*) noexcept nogil']
     if Parallel:
         Lines.extend(["from cython.parallel cimport prange as " + Prefix + "Prange", "from openmp cimport omp_get_num_threads as " + Prefix + "Team_Size, omp_get_max_threads as " + Prefix + "Max_Threads, omp_in_parallel as " + Prefix + "In_Parallel"])
@@ -288,35 +387,41 @@ def _Fast_Math_Kernel(Plan, Line, Parallel=False):
                   f"cdef unsigned long long {Prefix}Native_Elements = 0, {Prefix}Parallel_Elements = 0", f"cdef int {Prefix}Last_Team = 0",
                   f"def {Prefix}Stats():", f"    return dict(Native_Elements={Prefix}Native_Elements, Parallel_Elements={Prefix}Parallel_Elements, Team={Prefix}Last_Team)",
                   f"cdef bint {Prefix}Exclusive():", f"    S = {Prefix}System", f"    G = {Prefix}Signal", f"    T = {Prefix}Threading",
-                  f"    if {Prefix}Rounding() != {Prefix}Nearest or T.current_thread() is not T.main_thread() or len(S._current_frames()) != 1 or S.gettrace() is not None or S.getprofile() is not None:",
+                  f"    if {Prefix}Rounding() != {Prefix}Nearest or T.current_thread() is not T.main_thread() or len(S._current_frames()) != 1 or S.gettrace() is not None or S.getprofile() is not None or not {Prefix}Monitoring_Code():",
                   "        return False", "    for Number in G.valid_signals():", "        Handler = G.getsignal(Number)",
                   "        if Handler is not None and Handler is not G.SIG_DFL and Handler is not G.SIG_IGN and Handler is not G.default_int_handler:", "            return False", "    return True",
-                  f"cdef bint {Prefix}Bindings(dict Namespace):", "    cdef object Function, Module"])
+                  f"cdef bint {Prefix}Bindings(dict Namespace{', dict Source_Globals' if Plan.get('Global_Roots') else ''}):", "    cdef object Function, Module"])
     for Position, Name in enumerate(Plan["Functions"]):
         Lines.extend([f"    Function = {Prefix}Functions[{Position}]", f"    if {Prefix}Builtins.type(Function) is not {Prefix}Types.BuiltinFunctionType or Function.__self__ is not {Prefix}Math or Function.__name__ != {Name!r}:", "        return False",
                       f"    if {Prefix}Builtins.getattr({Prefix}Math, {Name!r}, None) is not Function:", "        return False"])
     for Root, Name, Module in Plan["Bindings"]:
         Position = Plan["Functions"].index(Name)
-        Test = f"Namespace.get({Root!r}) is not {Prefix}Math" if Module else f"Namespace.get({Root!r}) is not {Prefix}Functions[{Position}]"
+        Value = f"Source_Globals.get({Plan['Global_Roots'][Root]!r})" if Root in Plan.get('Global_Roots', {}) else f"Namespace.get({Root!r})"
+        Test = f"{Value} is not {Prefix}Math" if Module else f"{Value} is not {Prefix}Functions[{Position}]"
         Lines.extend(["    if " + Test + ":", "        return False"])
     Lines.append("    return True")
+    Lines.append(_Monitoring_Kernel(Prefix))
+    if Preamble:
+        return "\n".join(Lines) + "\n"
     Evaluation, Variables = [], ["L" + str(Index) for Index in range(Plan.get("Local_Count", 0))]
     _Fast_Emit_Program(Plan.get("Program", ()), Evaluation, Variables, Functions, Prefix)
     Result = _Fast_Emit(Plan["Expression"], Evaluation, Variables, Functions, Prefix)
-    Parameters = ", ".join([*("double X" + str(Index) for Index in range(len(Plan["Inputs"]))), "bint* Valid"])
+    Parameters = ", ".join([*("double X" + str(Index) for Index in range(len(Plan["Inputs"]))), "bint* Valid", "int* Error"])
     Lines.extend([f"@{Prefix}Division(True)", f"cdef inline double {Prefix}Value({Parameters}) noexcept nogil:"])
-    if Variables:
-        Lines.append("    cdef volatile double " + ", ".join(Variables))
+    for Start, Type in (("L", "double"), ("T", "volatile double")):
+        Group = [Name for Name in Variables if Name.startswith(Start)]
+        if Group:
+            Lines.append("    cdef " + Type + " " + ", ".join(Group))
     for Index in range(len(Plan["Inputs"])):
-        Lines.extend([f"    if not {Prefix}isfinite(X{Index}) or (X{Index} == 0.0 and {Prefix}signbit(X{Index})):", "        Valid[0] = False", "        return 0.0"])
+        Lines.extend([f"    if not {Prefix}Finite(X{Index}) or (X{Index} == 0.0 and {Prefix}signbit(X{Index})):", "        Valid[0] = False", "        return 0.0"])
     Lines.extend(Evaluation)
     Lines.append("    return " + Result)
     Source_Slots = [Plan["Names"].index(Name) for Name in Plan["Inputs"]]
     Output_Slot = Plan["Names"].index(Plan["Output"])
     Input_Parameters = [f"const double[::1] I{Index}" for Index in range(len(Source_Slots))]
-    Value_Call = f"{Prefix}Value(" + ", ".join([*(f"I{Index}[Position]" for Index in range(len(Source_Slots))), "&Valid"]) + ")"
+    Value_Call = f"{Prefix}Value(" + ", ".join([*(f"I{Index}[Position]" for Index in range(len(Source_Slots))), "&Valid", "Error"]) + ")"
     Lines.extend([f"@{Prefix}Bounds(False)", f"@{Prefix}Wrap(False)", f"cdef bint {Prefix}Evaluate({', '.join([*Input_Parameters, 'double* Scratch', 'Py_ssize_t Begin', 'Py_ssize_t End', 'Py_ssize_t Offset', 'const ' + Prefix + 'Environment* Environment', 'int* Exceptions'])}) noexcept nogil:",
-                  "    cdef bint Valid = True", "    cdef Py_ssize_t Position", f"    cdef {Prefix}Environment Previous", f"    {Prefix}Get_Environment(&Previous)", f"    {Prefix}Set_Environment(Environment)",
+                  "    cdef bint Valid = True", "    cdef Py_ssize_t Position", f"    cdef int* Error = {Prefix}Error_Address()", f"    cdef {Prefix}Environment Previous", f"    {Prefix}Get_Environment(&Previous)", f"    {Prefix}Set_Environment(Environment)",
                   "    for Position in range(Begin, End):", "        Scratch[Position - Offset] = " + Value_Call, "        if not Valid:", "            break",
                   f"    Exceptions[0] = {Prefix}Test_Exceptions({Prefix}All_Exceptions)", f"    {Prefix}Set_Environment(&Previous)", "    return Valid"])
     Lines.extend([f"@{Prefix}Bounds(False)", f"@{Prefix}Wrap(False)", f"cdef void {Prefix}Commit(double* Scratch, double[::1] Output, Py_ssize_t Begin, Py_ssize_t End) noexcept nogil:",

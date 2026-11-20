@@ -8,7 +8,7 @@ from unittest.mock import patch
 from PyCeler.Selection_Cache import _Cache_Context, _Cache_Read, _Cache_Write, _Normalize_Workloads
 from PyCeler.Selection_Policy import _Selection_Table
 from PyCeler.Selection_Worker import _Copy, _Observe, _Representative_Cases, _Value, _Winner
-
+# Regression checks for optimization selection.
 class Optimization_Selection(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 

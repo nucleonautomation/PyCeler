@@ -5,7 +5,7 @@ import platform
 import sys
 import tempfile
 from pathlib import Path
-
+# Test support/workload for check syntax.
 def _Run():
     import Cython
     from Cython.Compiler.Main import CompilationOptions, compile as Translate, default_options

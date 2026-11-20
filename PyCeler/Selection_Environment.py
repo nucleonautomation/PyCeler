@@ -1,4 +1,4 @@
-def _Pyceler_Environment():
+def _Pyceler_Environment():  # Capture machine and runtime identity used to scope measured dispatch decisions.
     import os
     import platform
     import sys

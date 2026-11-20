@@ -2,9 +2,9 @@ import ast
 import importlib.util
 import unittest
 from pathlib import Path
-
+# Regression checks for binary libm domains and signed-zero behavior.
 Root = Path(__file__).resolve().parents[1]
-Spec = importlib.util.spec_from_file_location("_Binary_Math_Plan_Test", Root / "PyCeler/Fast_Math.py")
+Spec = importlib.util.spec_from_file_location("PyCeler._Binary_Math_Plan_Test", Root / "PyCeler/Fast_Math.py")
 Fast = importlib.util.module_from_spec(Spec)
 Spec.loader.exec_module(Fast)
 

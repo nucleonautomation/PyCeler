@@ -8,20 +8,20 @@ from unittest.mock import patch
 from PyCeler import Compile, Convert
 from Test import Test_Fast_Math
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for math unary signs.
 class Math_Unary_Signs(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
     def test_Integer_And_Boolean_Negation_Preserve_Zero_Signs_And_Flags(self):
         Fixture = self._Root / "Test/Math_Unary_Sign_Loops.py"
-        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:
+        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:  # Keep generated sources and binaries outside the maintained fixture tree.
             Folder = Path(Directory)
             for Parallel in (False, True):
                 with self.subTest(Parallel=Parallel):
                     with patch.dict(os.environ, PYCELER_BUILD_DIR=str(Folder / "Build"), OMP_NUM_THREADS="2", OMP_DYNAMIC="FALSE"):
                         Converted = Convert(Fixture, Folder / ("Parallel_Source" if Parallel else "Serial_Source"), Select=False, OpenMP=Parallel)
                         Converted.write_text(Converted.read_text(encoding="utf-8") + Test_Fast_Math.Unboxed_Math._Rounding_Probe, encoding="utf-8")
-                        Binary = Compile(Converted, Folder / ("Parallel" if Parallel else "Serial"), Convert=False, OpenMP=Parallel)
+                        Binary = Compile(Converted, Folder / ("Parallel" if Parallel else "Serial"), Convert=False, OpenMP=Parallel)  # Build a real extension; a static finding alone does not prove native execution.
                         Result = subprocess.run([sys.executable, "-I", "-B", str(self._Root / "Test/Math_Unary_Sign_Probe.py"), str(Binary), str(Fixture), "parallel" if Parallel else "serial"], capture_output=True, text=True, timeout=120)
                     self.assertEqual(Result.returncode, 0, Result.stdout + Result.stderr)
                     Report = json.loads(Result.stdout)

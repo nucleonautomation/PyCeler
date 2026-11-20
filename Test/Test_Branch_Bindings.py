@@ -9,7 +9,7 @@ from unittest.mock import patch
 from PyCeler import Analyze, Compile
 from PyCeler.Common_Analysis import _Definite_Bindings
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for branch-local bindings, callbacks and observable order.
 class Branch_Bindings(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
@@ -40,11 +40,11 @@ class Branch_Bindings(unittest.TestCase):
     def test_Native_Regions_Preserve_Conditions_Callbacks_And_Empty_Ranges(self):
         Source = self._Root / "Test/Branch_Bindings.py"
         Before = Source.read_bytes()
-        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:
+        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:  # Keep generated sources and binaries outside the maintained fixture tree.
             Folder = Path(Directory)
             with patch.dict(os.environ, PYCELER_BUILD_DIR=str(Folder / "Build"), OMP_NUM_THREADS="2", OMP_DYNAMIC="FALSE"):
                 for Parallel in (False, True):
-                    Binary = Compile(Source, Folder / ("Parallel" if Parallel else "Serial"), Select=False, OpenMP=Parallel)
+                    Binary = Compile(Source, Folder / ("Parallel" if Parallel else "Serial"), Select=False, OpenMP=Parallel)  # Build a real extension; a static finding alone does not prove native execution.
                     Process = subprocess.run([sys.executable, "-I", "-B", str(self._Root / "Test/Branch_Bindings_Probe.py"), str(Binary), str(Source), "parallel" if Parallel else "serial"], capture_output=True, text=True, timeout=180)
                     self.assertEqual(Process.returncode, 0, Process.stdout + Process.stderr)
                     Report = json.loads(Process.stdout)

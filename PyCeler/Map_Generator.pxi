@@ -1,4 +1,4 @@
-cdef str _Map_Kernel(dict Plan, int Line, bint Parallel, bint Measured=False):
+cdef str _Map_Kernel(dict Plan, int Line, bint Parallel, bint Measured=False):  # Generate dtype-specialized elementwise workers from a validated map plan.
     Common = _Map_Validate(Plan)
     Names = Plan.get("Kernel_Names", Plan["Names"])
     Destination = Common.Output

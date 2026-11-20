@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 from Test.Workspace import Temporary_Directory
 from PyCeler import Analyze, Compile, Convert
-
+# Regression checks for proof-qualified reductions and actual worker teams.
 class Parallel_Reductions(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
     _Fixture = _Root / "Test" / "Parallel_Reductions.py"
@@ -41,7 +41,7 @@ class Parallel_Reductions(unittest.TestCase):
         Converted = Convert(self._Fixture, self._Folder / "Converted", Select=False, OpenMP=True)
         Wrappers = "\ndef _Test_Reduction_Interval(Node, Values):\n    return _Pyceler_Reduction_Interval(Node, Values)\n\ndef _Test_Reduction_Allowed(Args, Plan):\n    return _Pyceler_Reduction_Allowed(Args, Plan)\n"
         Converted.write_text(Converted.read_text(encoding="utf-8") + Wrappers, encoding="utf-8")
-        Binary = Compile(Converted, self._Folder / "Native", Convert=False, OpenMP=True)
+        Binary = Compile(Converted, self._Folder / "Native", Convert=False, OpenMP=True)  # Build a real extension; a static finding alone does not prove native execution.
         Program = (self._Root / "Test" / "Parallel_Reductions_Probe.py").read_text(encoding="utf-8")
         Program = "import sys\nsys.path.insert(0, sys.argv[1])\nParallel_Enabled = True\nReference_Path = " + repr(str(self._Fixture)) + "\n" + Program
         Result = subprocess.run([sys.executable, "-I", "-B", "-c", Program, str(Binary.parent)], text=True, capture_output=True, timeout=120)

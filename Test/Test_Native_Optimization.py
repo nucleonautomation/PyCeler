@@ -8,7 +8,7 @@ from unittest.mock import patch
 from Test.Workspace import Temporary_Directory
 from PyCeler import Analyze, Compile, Convert
 from PyCeler.Native_Optimizer import _Plans
-
+# Regression checks for native optimization.
 class Native_Optimization(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
     _Source = _Root / "Test" / "Typed_Fills.pyx"
@@ -64,7 +64,7 @@ class Native_Optimization(unittest.TestCase):
         self.assertEqual(sum(Item.Classification == "Native_Contiguous_Fill" for Item in Analyze(Source)), 3)
         Converted = Convert(Source, self._Folder / "Converted", Select=False)
         self.assertIn("_Pyceler_Native_Optimized_Fill_Int", Converted.read_text(encoding="utf-8"))
-        Binary = Compile(Source, self._Folder / "Native", Select=False)
+        Binary = Compile(Source, self._Folder / "Native", Select=False)  # Build a real extension; a static finding alone does not prove native execution.
         Program = "import sys, numpy as N; sys.path.insert(0,sys.argv[1]); import Standalone; A=N.ones(17,dtype=N.int32); assert Standalone.Fill_Int(A,7) is None; assert (A==7).all()"
         Result = subprocess.run([sys.executable, "-I", "-B", "-c", Program, str(Binary.parent)], capture_output=True, text=True)
         self.assertEqual(Result.returncode, 0, Result.stdout + Result.stderr)

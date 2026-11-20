@@ -7,7 +7,7 @@ import subprocess
 import sys
 import sysconfig
 from pathlib import Path
-
+# Report compiler and dependency availability using bounded capability checks.
 def _Backend():
     if __package__:
         from . import Native_Build

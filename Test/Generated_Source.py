@@ -1,6 +1,10 @@
 import ast
-
+import re
+# Test support/workload for generated source.
 def _Python_Source(Text):
+    Marker = re.search(r'(?m)^_Pyceler_X*Direct_Application_Begin = None\n', Text)
+    if Marker is not None:
+        return Text[Marker.end():]
     Sources = []
     for Line in Text.splitlines():
         if Line[:1].isspace() or ".exec(" not in Line:

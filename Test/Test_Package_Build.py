@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 import Compile
 from PyCeler.Native_Build import _Cleanup_Workspace, _Publication, _Replace_Outputs
-
+# Regression checks for package build.
 class Native_Distribution(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
@@ -52,7 +52,7 @@ class Native_Distribution(unittest.TestCase):
         Captured = {}
         @contextmanager
         def _Workspace():
-            with Temporary_Directory(dir=self._Folder) as Folder:
+            with Temporary_Directory(dir=self._Folder) as Folder:  # Keep generated sources and binaries outside the maintained fixture tree.
                 yield Path(Folder)
         def _Build(Stage, Paths, Output, *Options):
             Captured["Paths"] = list(Paths)

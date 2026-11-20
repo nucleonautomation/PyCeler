@@ -3,7 +3,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 import numpy
 import Numeric_Loops as Native
-
+# Isolated verification for native.
 Spec = importlib.util.spec_from_file_location("Reference_Loops", Reference_Path)
 Reference = importlib.util.module_from_spec(Spec)
 Spec.loader.exec_module(Reference)
@@ -45,6 +45,11 @@ for Module in (Reference, Native):
         raise AssertionError("Expected a read-only error")
 Values = [2 ** 140, 1, 7]
 assert Native.Prefix_Sum(Values.copy()) == Reference.Prefix_Sum(Values.copy())
+Values = [Index * 0.125 for Index in range(1024)]
+Native._Pyceler_Dispatch_Stats(True, True)
+assert Native.Prefix_Sum(Values.copy()) == Reference.Prefix_Sum(Values.copy())
+Execution = Native._Pyceler_Dispatch_Stats(False).get('Execution', {})
+assert Execution.get('Native_Entry') and Execution.get('Actual_Team') == 1, Execution
 with ThreadPoolExecutor(max_workers=1) as Pool:
     Array = numpy.ones(120000)
     assert Pool.submit(Native.Clear_Elements, Array).result() is Array

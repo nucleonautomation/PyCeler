@@ -4,7 +4,7 @@ def Copy_Grid(Source, Output):
         for Column in range(len(Source[Row])):
             Output[Row, Column] = Source[Row, Column]
     return Output
-
+# Test support/workload for map.
 def Threshold_Grid(Source, Output, Level=4):
     Rows, Columns = Output.shape
     for Row in range(Rows):

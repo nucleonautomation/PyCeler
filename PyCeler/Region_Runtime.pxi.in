@@ -1,5 +1,5 @@
 from libc.stdint cimport int16_t as _Pyceler_S16, int32_t as _Pyceler_S32, int64_t as _Pyceler_S64, uint16_t as _Pyceler_U16, uint8_t as _Pyceler_U8
-
+# Validate shapes, labels, points and storage before entering specialized region kernels.
 ctypedef fused _Pyceler_Pixel:
     _Pyceler_U8
     _Pyceler_S16

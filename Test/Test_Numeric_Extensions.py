@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 from Test.Workspace import Temporary_Directory
 from PyCeler import Analyze, Compile
-
+# Regression checks for numeric extensions.
 class Numeric_Extensions(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
     _Source = _Root / "Test" / "Numeric_Extensions.py"
@@ -29,7 +29,7 @@ class Numeric_Extensions(unittest.TestCase):
 
     def test_Clipped_Median_And_Channel_Distance_Match_Independent_Oracles(self):
         for Parallel in (False, True):
-            Binary = Compile(self._Source, self._Folder / str(Parallel), Select=False, OpenMP=Parallel, Elide_Temporaries=True)
+            Binary = Compile(self._Source, self._Folder / str(Parallel), Select=False, OpenMP=Parallel, Elide_Temporaries=True)  # Build a real extension; a static finding alone does not prove native execution.
             Program = "\n".join(("import sys, numpy as N", "from pathlib import Path", "sys.path.insert(0,sys.argv[2])",
                 "from PyCeler.Selection_Worker import _Load, _Observe", "sys.path.insert(0, sys.argv[1])", "import Numeric_Extensions as M",
                 "Reference = _Load(Path(sys.argv[2])/'Test'/'Numeric_Extensions.py', 'Reference')",

@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch
 from PyCeler.Environment_Checker import Doctor
-
+# Regression checks for environment checker.
 class Environment_Diagnostics(unittest.TestCase):
     def test_Inspection_Does_Not_Build(self):
         Backend = Mock()

@@ -3,7 +3,7 @@ import json
 import sys
 from pathlib import Path
 import numpy as N
-
+# Isolated verification for branch-local bindings, callbacks and observable order.
 def _Load(Name, File):
     Spec = importlib.util.spec_from_file_location(Name, File)
     Module = importlib.util.module_from_spec(Spec)
@@ -37,7 +37,7 @@ def _Observe(Module, Name, Flag, Other, Kind, Size, Failure=None):
         First = N.repeat(First, 2)[::2]
         Second = N.repeat(Second, 2)[::2]
     elif Kind == "readonly_output":
-        Output.flags.writeable = False
+        Output.flags.writeable = False  # Guard rejection must preserve the original read-only-output error.
     def Callback(Source, Target, Trace):
         Phase = Trace[-1]
         Trace.append(("callback", Phase, len(Source), len(Target)))

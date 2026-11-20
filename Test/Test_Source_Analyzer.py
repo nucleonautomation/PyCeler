@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 from PyCeler import Analyze
-
+# Regression checks for source discovery and dependency staging.
 class Source_Analysis(unittest.TestCase):
     _Directory = Path(__file__).resolve().parent
 
@@ -23,7 +23,9 @@ class Source_Analysis(unittest.TestCase):
 
     def test_Prefix_Sum_Explains_Parallel_Rejection(self):
         _, Prefix = Analyze(self._Directory / "Numeric_Loops.py")
-        self.assertEqual(Prefix.Classification, "Loop_Carried_Dependency")
+        self.assertEqual(Prefix.Classification, "Guarded_Numeric_Region")
+        self.assertIn("retain their original order", Prefix.Reason)
+        self.assertEqual(Prefix.Plan.Parallel_Status, 'rejected_dependency')
         self.assertIn("Values[Index - 1]", Prefix.Reason)
         self.assertIn("preceding iteration", Prefix.Reason)
         self.assertIn("ineligible", Prefix.Reason)
@@ -35,14 +37,14 @@ class Source_Analysis(unittest.TestCase):
         self.assertEqual(Method.Classification, "Potential_Independent_Write")
         self.assertEqual(Method.Indexed_Writes, ("Buffer[Position]",))
 
-    def test_Unsupported_Patterns_Are_Unknown(self):
+    def test_Mixed_Pattern_Classifications(self):
         Findings = Analyze(self._Directory / "Static_Only_Loops.py")
         Cases = [(Finding.Function, Finding.Classification) for Finding in Findings]
         self.assertEqual(Cases, [
             ("Example.Clear", "Potential_Independent_Write"),
-            ("Indirect_Write", "Unknown"),
+            ("Indirect_Write", "Guarded_Numeric_Region"),
             ("With_Call", "Unknown"),
-            ("Other_Source", "Unknown"),
+            ("Other_Source", "Guarded_Numeric_Region"),
             ("Other_Bounds", "Unknown"),
             ("Nested", "Unknown"),
             ("Nested", "Potential_Independent_Write"),

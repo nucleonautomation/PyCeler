@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from PyCeler import Analyze, Compile, Convert
-
+# Regression checks for pipeline.
 class Native_Pipeline(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
     _Fixture = _Root / "Test" / "Numeric_Loops.py"
@@ -36,7 +36,8 @@ class Native_Pipeline(unittest.TestCase):
         Serial, Prefix = Analyze(self._Source)
         self.assertEqual(sorted(self._Folder.iterdir()), Before)
         self.assertEqual(Serial.Change, "Guarded serial zero fill")
-        self.assertEqual(Prefix.Change, "Keep original loop")
+        self.assertEqual(Prefix.Classification, 'Guarded_Numeric_Region')
+        self.assertEqual(Prefix.Plan.Parallel_Status, 'rejected_dependency')
         self.assertIn("OpenMP", Analyze(self._Source, OpenMP=True)[0].Change)
         Serial_Text = Convert(self._Source, Select=False).read_text(encoding="utf-8")
         Parallel_Text = Convert(self._Source, self._Folder / "Parallel", OpenMP=True, Select=False).read_text(encoding="utf-8")
@@ -49,7 +50,7 @@ class Native_Pipeline(unittest.TestCase):
     def test_Native_Kernels_Against_Python(self):
         for Name, Options in (("Serial", {}), ("Parallel", {"Mode": "simple", "Python_Version": f"{sys.version_info.major}.{sys.version_info.minor}", "OpenMP": True})):
             with self.subTest(Name=Name):
-                Binary = Compile(self._Source, self._Folder / Name, Select=False, **Options)
+                Binary = Compile(self._Source, self._Folder / Name, Select=False, **Options)  # Build a real extension; a static finding alone does not prove native execution.
                 self.assertEqual(Binary.suffix, ".pyd" if os.name == "nt" else ".so")
                 Program = (self._Root / "Test" / "Native_Probe.py").read_text(encoding="utf-8")
                 self._Probe(Binary.parent, "Reference_Path = " + repr(str(self._Fixture)) + "\n" + Program)
@@ -94,7 +95,7 @@ class Native_Pipeline(unittest.TestCase):
         Changes = {Item.Function: Item.Change for Item in reversed(Findings)}
         self.assertEqual(Changes["Threshold_Grid"], "Guarded 2D OpenMP element-wise kernel")
         self.assertEqual(Changes["Blend"], "Guarded 1D OpenMP element-wise kernel")
-        self.assertEqual(Changes["Transpose_Into"], "Keep original loop")
+        self.assertTrue(any(Item.Function == 'Transpose_Into' and Item.Classification == 'Guarded_Array_Region' for Item in Findings))
         self.assertEqual(Changes["Shared_Write"], "Keep original loop")
         for Parallel in (False, True):
             with self.subTest(OpenMP=Parallel):

@@ -5,7 +5,7 @@ from dataclasses import asdict
 from pathlib import Path
 from PyCeler import Analyze, Loop_Finding
 from PyCeler.Common_Analysis import _Attach_Common_Plans, _Capability_Matrix, _Inventory, _Map_Adapter, _Map_Validate, _Plan_For
-
+# Regression checks for shared flow, dependency and effect facts.
 class Common_Analysis(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
@@ -98,7 +98,7 @@ class Common_Analysis(unittest.TestCase):
         Rows = _Capability_Matrix(Findings)
         self.assertEqual(Rows[0]["Serial"], "guarded_candidate")
         self.assertEqual(Rows[0]["Parallel"], "guarded_candidate")
-        self.assertEqual(Rows[1]["Serial"], "python_retained")
+        self.assertEqual(Rows[1]["Serial"], "guarded_candidate")
         self.assertEqual(Rows[1]["Parallel"], "rejected_dependency")
         self.assertTrue(all(Row["Native_Entry"] == "not_observed_by_static_analysis" for Row in Rows))
 

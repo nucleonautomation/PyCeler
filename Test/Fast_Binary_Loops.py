@@ -1,7 +1,7 @@
 import math
 from math import copysign as Copy_Sign
 from math import fmod as Float_Remainder
-
+# Test support/workload for binary libm domains and signed-zero behavior.
 def Map_Copysign(Left, Right, Output):
     for Index in range(len(Left)):
         Output[Index] = math.copysign(Left[Index], Right[Index])

@@ -52,7 +52,7 @@ cdef object _Exact_Read(object Function):
         return None
     return dict(Kind="receive", Names=Names, Key=Need, Output=Need, Start=Init.lineno, Loops=[Loop], Reader=Names.index(Socket),
                 Loop=Loop, Length=Length, Data=Data, Chunk=Chunk)
-
+# Recognize exact supported stream operations while retaining I/O order and failure behavior.
 cdef bint _Returns_None(object Node):
     return isinstance(Node, ast.Return) and (Node.value is None or (isinstance(Node.value, ast.Constant) and Node.value.value is None))
 

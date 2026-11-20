@@ -12,7 +12,7 @@ from dataclasses import asdict
 from pathlib import Path
 from time import perf_counter
 from Survey_Source import Write_Survey
-
+# Measurement harness for survey.
 def _Timed(Label, Action, Durations):
     print(Label, flush=True)
     Start = perf_counter()

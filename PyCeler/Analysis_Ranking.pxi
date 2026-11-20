@@ -1,5 +1,5 @@
 from dataclasses import replace as _Rank_Replace
-
+# Rank loops by estimated interpreter work; these scores are priorities, not optimization proofs.
 cdef object _Rank_Integer(object Node):
     Sign = 1
     if isinstance(Node, ast.UnaryOp) and isinstance(Node.op, (ast.USub, ast.UAdd)):

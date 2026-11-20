@@ -9,7 +9,7 @@ from Test.Workspace import Temporary_Directory
 from Test.Survey_Source import _Stencil
 from PyCeler import Compile
 from PyCeler.Selection_Policy import _Normalize_Tuning, _Selection_Table, _Candidate_Code, _Candidate_Name
-
+# Regression checks for tuning.
 class Candidate_Tuning(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
@@ -26,12 +26,12 @@ class Candidate_Tuning(unittest.TestCase):
         self.assertEqual(_Selection_Table(Cases, 1.1)["<i4"], [(4096, _Candidate_Code("OpenMP_2"))])
 
     def test_Tuned_Filter_Profiles_Validates_And_Explains_Candidates(self):
-        with Temporary_Directory(dir=self._Root / "Test_Run") as Folder:
+        with Temporary_Directory(dir=self._Root / "Test_Run") as Folder:  # Keep generated sources and binaries outside the maintained fixture tree.
             Work = Path(Folder)
             Source = Work / "Filter.py"
             Source.write_text("import numpy as Numpy\n" + _Stencil("Filter", ((1, 1, 1), (1, 1, 1), (1, 1, 1)), 9), encoding="utf-8")
             with patch.dict(os.environ, PYCELER_BUILD_DIR=str(Work / "Build"), OMP_NUM_THREADS="2", OMP_DYNAMIC="FALSE"):
-                Binary = Compile(Source, Work / "Native", Tuning=dict(Threads=[2, 4], Tiles=[16, 32], Budget_Seconds=60), Profile=True, Cache=Work / "Cache")
+                Binary = Compile(Source, Work / "Native", Tuning=dict(Threads=[2, 4], Tiles=[16, 32], Budget_Seconds=60), Profile=True, Cache=Work / "Cache")  # Build a real extension; a static finding alone does not prove native execution.
             Report = json.loads(Binary.with_suffix(".selection.json").read_text(encoding="utf-8"))
             self.assertEqual(set(Report["Builds"]), {"Serial", "Tiled_16", "Tiled_32", "OpenMP_2", "OpenMP_4"})
             self.assertTrue(all(Value["Status"] == "built" for Value in Report["Builds"].values()), Report["Builds"])

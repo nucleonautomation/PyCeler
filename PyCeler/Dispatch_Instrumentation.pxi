@@ -23,7 +23,7 @@ cdef list _Dispatch_Parallel_Block(list Lines, str Prefix):
         Result.extend("    " + Value for Value in Body)
         Position = End
     return Result
-
+# Insert runtime observations that distinguish native entry and worker teams from candidate selection.
 cdef list _Dispatch_Function(list Lines, str Name, str Prefix):
     Signature = Lines[0]
     if " nogil" in Signature or Name.startswith(Prefix + "Dispatch_"):

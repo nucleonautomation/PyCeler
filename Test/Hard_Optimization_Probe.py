@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from time import perf_counter_ns
 import numpy as Numpy
-
+# Isolated verification for hard optimization.
 def _Load(File, Name):
     Spec = importlib.util.spec_from_file_location(Name, File)
     Module = importlib.util.module_from_spec(Spec)

@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 from PyCeler import Analyze, Compile, Convert
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for observable module globals and partial failures.
 class Module_Scalar(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
     _Fixture = _Root / "Test" / "Module_Scalar_Loops.py"
@@ -30,7 +30,7 @@ class Module_Scalar(unittest.TestCase):
 
     def _Compare(self, Source, Fields, Parallel=False):
         Original = Source.read_bytes()
-        Binary = Compile(Source, self._Folder / ("Parallel" if Parallel else "Serial"), Select=False, OpenMP=Parallel)
+        Binary = Compile(Source, self._Folder / ("Parallel" if Parallel else "Serial"), Select=False, OpenMP=Parallel)  # Build a real extension; a static finding alone does not prove native execution.
         Reference = self._Probe(Source, Fields)
         Native = self._Probe(Binary, Fields)
         self.assertEqual(Native["Values"], Reference["Values"])

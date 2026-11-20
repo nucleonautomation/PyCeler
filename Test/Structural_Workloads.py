@@ -1,5 +1,5 @@
 import numpy as Numpy
-
+# Test support/workload for dependency-safe structural loop rewrites.
 def _Cases(Name):
     Cases = []
     for Size, Holdout in ((32, False), (96, True), (4096, False), (6144, True), (65536, False), (98304, True)):

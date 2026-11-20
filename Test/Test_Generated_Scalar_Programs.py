@@ -11,7 +11,7 @@ from PyCeler import Analyze, Compile
 from Test.Generated_Scalar_Programs import _Programs
 from Test.Generated_Scalar_Probe import _Observe, _Positive_Cases
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for generated scalar programs.
 class Generated_Scalar_Programs(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
@@ -44,7 +44,7 @@ class Generated_Scalar_Programs(unittest.TestCase):
         self.assertTrue(Observation["Python_Fallback"])
 
     def test_Generated_AST_Combinations_Preserve_Observable_Behavior(self):
-        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:
+        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:  # Keep generated sources and binaries outside the maintained fixture tree.
             Folder = Path(Directory)
             Source = Folder / "Generated_Programs.py"
             Text = _Programs()
@@ -58,7 +58,7 @@ class Generated_Scalar_Programs(unittest.TestCase):
             with patch.dict(os.environ, {"PYCELER_BUILD_DIR": str(Folder / "Build"), "OMP_NUM_THREADS": "2", "OMP_DYNAMIC": "FALSE"}):
                 for Parallel in (False, True):
                     with self.subTest(OpenMP=Parallel):
-                        Binary = Compile(Source, Folder / ("Parallel" if Parallel else "Serial"), Select=False, OpenMP=Parallel)
+                        Binary = Compile(Source, Folder / ("Parallel" if Parallel else "Serial"), Select=False, OpenMP=Parallel)  # Build a real extension; a static finding alone does not prove native execution.
                         Result = subprocess.run([sys.executable, "-I", "-B", str(self._Root / "Test" / "Generated_Scalar_Probe.py"), str(Source), str(Binary)],
                                                 capture_output=True, text=True, timeout=180)
                         self.assertEqual(Result.returncode, 0, Result.stdout + Result.stderr)

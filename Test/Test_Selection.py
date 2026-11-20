@@ -11,7 +11,7 @@ from unittest.mock import patch
 from PyCeler import Compile, Convert
 from PyCeler.Native_Build import _Build
 from PyCeler.Selection_Worker import _Check, _Winner
-
+# Regression checks for validation, timing budgets and conservative dispatch.
 class Measured_Selection(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
@@ -30,6 +30,36 @@ class Measured_Selection(unittest.TestCase):
         self.assertEqual(_Pick([100] * 5, [45] * 5, [44] * 5), "Serial")
         self.assertEqual(_Pick([100] * 5, [45] * 5, [25] * 5), "OpenMP")
         self.assertEqual(_Pick([100] * 5, [45] * 5, [20, 20, 20, 50, 50]), "Serial")
+
+    def test_NumPy_Scalars_Preserve_Dtype_And_Aliases(self):
+        import numpy as Numpy
+        from PyCeler.Selection_Inputs import _Copy, _Value, _Storage_Bytes
+        for Type in (Numpy.float32, Numpy.float64, Numpy.int32, Numpy.int64, Numpy.complex128, Numpy.bool_):
+            Value = Type(1)
+            Args = (Value, Value, Numpy.array([Value]))
+            Copy = _Copy(Args)
+            self.assertEqual(_Value(Args), _Value(Copy))
+            self.assertIs(Copy[0], Copy[1])
+            self.assertIsNot(Copy[2], Args[2])
+            self.assertGreater(_Storage_Bytes(Args), 0)
+        self.assertNotEqual(_Value(Numpy.float32(0.0)), _Value(Numpy.float32(-0.0)))
+        self.assertNotEqual(_Value(Numpy.float64(1.0)), _Value(1.0))
+
+    def test_Array_Probe_Fixed_Axes_And_Representative_Ranges(self):
+        import numpy as Numpy
+        from PyCeler.Selection_Worker import _Cases, _Representative_Cases
+        Item = dict(Kind='array_region', Names=['Pixels', 'Size'], Buffers={'Pixels': [0, 3, 'float']}, Array_Axes={'Pixels': [None, None, 3]}, Array_Rows={}, Reads=[], Probe_Inputs={'Size': 'size'}, Input_Types={'Size': 'integer'}, Range='range(1, Size - 1)', Arguments=2)
+        Cases = list(_Cases(Item))
+        self.assertGreater(Cases[-1][3][0].shape[0], 300)
+        self.assertTrue(all(Case[3][0].shape[-1] == 3 for Case in Cases))
+        self.assertIn(128, [Case[3][0].shape[0] for Case in Cases])
+        Flat = dict(Item, Names=['Pixels'], Arguments=1, Buffers={'Pixels': [0, 1, 'float']}, Array_Axes={'Pixels': [None]}, Range='range(len(Pixels))')
+        self.assertTrue({512, 2048} <= {Case[1] for Case in _Cases(Flat)})
+        Item['Representative_Workload'] = {}
+        Args = (Numpy.zeros((7, 9, 3)), 7)
+        with patch('PyCeler.Selection_Worker._Factory_Cases', return_value=[dict(Args=Args, Label='rectangular', Holdout=False)]):
+            Cases = _Representative_Cases(Item)
+        self.assertEqual(Cases[0][:3], ('int', 5, ()))
 
     def test_Invalid_Mutations_And_Return_Identity_Are_Excluded(self):
         import numpy
@@ -58,7 +88,9 @@ class Measured_Selection(unittest.TestCase):
         self.assertEqual({Build["Status"] for Build in Data["Builds"].values()}, {"compilation failed"})
         self.assertEqual(Data["Items"][0]["Fallback"], "Python")
         self.assertIn("return _Pyceler_Original_", _Python_Source(Output.read_text(encoding="utf-8")))
-        self.assertEqual(Data["Skipped"][0]["Function"], "Prefix_Sum")
+        Prefix = next(Item for Item in Data["Items"] if Item["Function"] == "Prefix_Sum")
+        self.assertEqual(Prefix["Kind"], "numeric_region")
+        self.assertEqual(Prefix["Eligible"], ["Python", "Serial"])
         Convert(Source, self._Folder, Select=False)
         Replaced = json.loads(Report.read_text(encoding="utf-8"))
         self.assertEqual(Replaced["Status"], "measurement_disabled")
@@ -73,7 +105,7 @@ class Measured_Selection(unittest.TestCase):
         Source.write_text(f"from pathlib import Path\ndef Default():\n    Path({str(Marker)!r}).touch()\n    return 4\n" + Fixture +
                           "\ndef Count(Rows=Default(), Columns=2):\n    Total = 0\n    for Row in range(Rows):\n        for Column in range(Columns):\n            Total += Row + Column\n    return Total\n", encoding="utf-8")
         Original = Source.read_bytes()
-        Binary = Compile(Source, self._Folder / "Native")
+        Binary = Compile(Source, self._Folder / "Native")  # Build a real extension; a static finding alone does not prove native execution.
         self.assertFalse(Marker.exists())
         self.assertEqual(Original, Source.read_bytes())
         Data = json.loads(Binary.with_suffix(".selection.json").read_text(encoding="utf-8"))
@@ -87,7 +119,8 @@ class Measured_Selection(unittest.TestCase):
         self.assertEqual(Count["Size_Arguments"], [0, 1])
         self.assertEqual(Count["Eligible"], ["Python", "Serial"])
         self.assertTrue(all("OpenMP" not in Case["Timings"] for Case in Count["Cases"]))
-        self.assertEqual(Data["Skipped"][0]["Function"], "Prefix_Sum")
+        self.assertEqual(Items["Prefix_Sum"]["Kind"], "numeric_region")
+        self.assertEqual(Items["Prefix_Sum"]["Eligible"], ["Python", "Serial"])
         Program = (self._Root / "Test" / "Selection_Probe.py").read_text(encoding="utf-8")
         for Threads in ("2", "1"):
             Process = subprocess.run([sys.executable, "-I", "-B", "-c", Program, str(Binary.parent), Threads], capture_output=True, text=True,

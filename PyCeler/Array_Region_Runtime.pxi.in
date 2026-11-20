@@ -1,0 +1,306 @@
+def NUMERIC_PREFIXBlocks(Span, Recovery):
+    import builtins as B
+    if B.type(Span) is not B.range or not -1125899906842624 <= Span.start <= 1125899906842624 or not -1125899906842624 <= Span.stop <= 1125899906842624 or not -1125899906842624 <= Span.step <= 1125899906842624:
+        yield Span
+        return
+    if B.len(Recovery) > 1:
+        Recovery[1] = 2 * B.len(Span).bit_length()
+    for Position in B.range(0, B.len(Span), 65536):
+        Pending = [(Span[Position:Position + 65536], 0)]
+        while Pending:
+            Current, Depth = Pending.pop()
+            Recovery[0] = 0
+            yield Current
+            Cut = Recovery[0]
+            if 0 < Cut < B.len(Current):
+                if Depth:
+                    Cut = B.len(Current) // 2
+                Pending.append((Current[Cut:], Depth + 1))
+                Pending.append((Current[:Cut], Depth + 1))
+# Run ndarray transactions on isolated storage; publish only validated work and preserve failure continuation.
+cdef object NUMERIC_PREFIXTry(dict Namespace, object Span, object Whole, object Binding, object Length_Binding, object Policy, object Source_Code, dict Source_Globals, list Recovery=None):
+    cdef bint Published = False
+    cdef Py_ssize_t Failure = -1
+    try:
+        Result = NUMERIC_PREFIXAttempt(Namespace, Span, Whole, Binding, Length_Binding, Policy, Source_Code, Source_Globals, &Published, &Failure)
+        if Result is None and Failure > 0 and Recovery is not None:  # Recover only a validated unpublished prefix; retries have a bounded budget.
+            if len(Recovery) > 1:
+                if Recovery[1] <= 0:
+                    return None
+                Recovery[1] -= 1
+            Recovery[0] = Failure
+        return Result
+    except MemoryError:
+        if Published:
+            raise
+        return None
+
+cdef object NUMERIC_PREFIXAttempt(dict Namespace, object Span, object Whole, object Binding, object Length_Binding, object Policy, object Source_Code, dict Source_Globals, bint* Published, Py_ssize_t* Failure):
+    import builtins as B
+    N = FAST_PREFIXSystem.modules.get('numpy')
+    Core = FAST_PREFIXSystem.modules.get('numpy._core.multiarray') or FAST_PREFIXSystem.modules.get('numpy.core.multiarray')
+    Types = FAST_PREFIXSystem.modules.get('numpy._core.numerictypes') or FAST_PREFIXSystem.modules.get('numpy.core.numerictypes')
+    cdef double* Buffers[BUFFER_COUNT]
+    cdef double* Trial[BUFFER_COUNT]
+    cdef unsigned char* Changed[BUFFER_COUNT]
+    cdef unsigned char* Trial_Changed[BUFFER_COUNT]
+    cdef Py_ssize_t* Shapes[BUFFER_COUNT]
+    cdef Py_ssize_t* Strides[BUFFER_COUNT]
+    cdef Py_ssize_t Shape_Data[BUFFER_COUNT * RANK_COUNT], Stride_Data[BUFFER_COUNT * RANK_COUNT], Sizes[BUFFER_COUNT]
+    cdef unsigned char Buffer_Kinds[BUFFER_COUNT], Scalar_Kinds[SLOT_COUNT], Final_Kinds[SLOT_COUNT]
+    cdef int Output_Kinds[BUFFER_COUNT]
+    cdef double Inputs[SLOT_COUNT], Final_Inputs[SLOT_COUNT]
+    cdef double[::1] Values
+    cdef double[::1] Random_View
+    cdef double* Random_Values = NULL
+    cdef Py_ssize_t Random_Per_Outer = 0, Random_Total = 0, Random_Prefix = 0, Random_Final = 0
+    cdef unsigned char[::1] Mask
+    cdef unsigned char[::1] Raw_View
+    cdef Py_ssize_t Slot, Axis, Position, Begin, End, Step, Last, Count, Part, Parts, Native_End, Native_Count
+    cdef unsigned char Assigned[SLOT_COUNT], Prefix_Assigned[SLOT_COUNT]
+    cdef bint Valid = True, Used_Parallel = False, Parallel_OK, Recoverable
+    cdef bint Checks[256]
+    cdef int Exceptions[256], Team[1], Workers, Flags = 0, Mode
+    cdef FAST_PREFIXEnvironment Saved
+    cdef FAST_PREFIXException_State Prepared
+    global FAST_PREFIXNative_Elements, FAST_PREFIXParallel_Elements, FAST_PREFIXLast_Team
+    _Pyceler_Dispatch_Event('Execution', 'python_fallback', 0)
+    if Binding is not B.range or Length_Binding is not B.len or B.type(Span) is not B.range:  # Runtime rebinding invalidates a static builtin assumption.
+        return None
+    if B.type(Length_Binding) is not FAST_PREFIXTypes.BuiltinFunctionType or Length_Binding.__self__ is not B or Length_Binding.__name__ != 'len':
+        return None
+    if not -1125899906842624 <= Span.start <= 1125899906842624 or not -1125899906842624 <= Span.stop <= 1125899906842624 or not -1125899906842624 <= Span.step <= 1125899906842624 or B.len(Span) < 2:
+        return None
+    POLICY_GUARD
+    if not FAST_PREFIXExclusive() or not FAST_PREFIXBindings(Namespace):
+        return None
+    if N is None or Core is None or Types is None:
+        return None
+    for Name in ('ndarray', 'zeros', 'empty', 'copyto', 'shares_memory'):
+        if getattr(N, Name, None) is not getattr(Core, Name, None):
+            return None
+    for Name in SCALAR_TYPE_NAMES:
+        if getattr(N, Name, None) is not getattr(Types, Name, None):
+            return None
+    REQUIRED_GUARDS
+    Begin, End, Step, Last, Count = Span.start, Span.stop, Span.step, Span[-1], B.len(Span)
+    Native_End = End if NATIVE_COMPLETE else Last
+    Native_Count = Count if NATIVE_COMPLETE else Count - 1
+    Original_Names = {Name: Namespace[Name] for Name in OBSERVED_NAMES if Name in Namespace}
+    Absent_Names = [Name for Name in OBSERVED_NAMES if Name not in Namespace]
+    Objects = [Namespace[Name] for Name in BUFFER_NAMES]
+    if FLAT_REGION and Count < 128:
+        Total_Size = 0
+        Integer_Storage = False
+        for Array in Objects:
+            if B.type(Array) is not N.ndarray:
+                return None
+            Total_Size += Array.size
+            Integer_Storage = Integer_Storage or Array.dtype.kind in ('i', 'u')
+        if Integer_Storage and Total_Size > Count * 128:
+            return None
+    Snapshots, Working, Trials, Masks, Trial_Masks = [], [], [], [], []  # Separate original storage, speculative values and publication masks.
+    Metadata = []
+    for Slot in range(BUFFER_COUNT):
+        Array = Objects[Slot]
+        if B.type(Array) is not N.ndarray:
+            return None
+        if BUFFER_SHAPE_ONLY[Slot]:
+            if Array.ndim < BUFFER_DIMENSIONS[Slot]:
+                return None
+            Shapes[Slot], Strides[Slot] = &Shape_Data[Slot * RANK_COUNT], &Stride_Data[Slot * RANK_COUNT]
+            for Axis in range(BUFFER_DIMENSIONS[Slot]):
+                Shapes[Slot][Axis], Strides[Slot][Axis] = Array.shape[Axis], 0
+            Sizes[Slot], Buffer_Kinds[Slot], Output_Kinds[Slot] = 0, 0, 0
+            Buffers[Slot], Trial[Slot], Changed[Slot], Trial_Changed[Slot] = NULL, NULL, NULL, NULL
+            Metadata.append((Array.shape, Array.strides, Array.dtype, Array.flags.writeable))
+            for Collection in (Snapshots, Working, Trials, Masks, Trial_Masks):
+                Collection.append(None)
+            continue
+        if Array.ndim != BUFFER_DIMENSIONS[Slot] or Array.dtype.metadata is not None or not Array.dtype.isnative or not Array.flags.aligned:
+            return None
+        Kind = Array.dtype.kind
+        Width = Array.dtype.itemsize
+        if Kind not in ('f', 'i', 'u', 'b') or Width not in (1, 2, 4, 8) or Kind == 'f' and Width not in (4, 8):
+            return None
+        if BUFFER_WRITES[Slot]:
+            if not Array.flags.writeable:
+                return None
+            Extent = Array.itemsize
+            for Stride, Dimension in sorted([(abs(Stride), Dimension) for Stride, Dimension in zip(Array.strides, Array.shape) if Dimension > 1]):
+                if Stride < Extent:
+                    return None
+                Extent += Stride * (Dimension - 1)
+        if Array.size == 0:
+            return None
+        for Previous_Slot in range(Slot):
+            if not BUFFER_SHAPE_ONLY[Previous_Slot] and (BUFFER_WRITES[Slot] or BUFFER_WRITES[Previous_Slot]) and N.shares_memory(Array, Objects[Previous_Slot]):
+                return None
+        Sizes[Slot] = Array.size
+        Shapes[Slot], Strides[Slot] = &Shape_Data[Slot * RANK_COUNT], &Stride_Data[Slot * RANK_COUNT]
+        Position = 1
+        for Axis in range(Array.ndim - 1, -1, -1):
+            Shapes[Slot][Axis] = Array.shape[Axis]
+            Strides[Slot][Axis] = Position
+            Position *= Shapes[Slot][Axis]
+        Output_Kinds[Slot] = (1 if Width == 4 else 2) if Kind == 'f' else 3 if Kind == 'b' else (10 if Kind == 'i' else 20) + Width
+        Buffer_Kinds[Slot] = Output_Kinds[Slot] if BUFFER_READS[Slot] else 0
+        Metadata.append((Array.shape, Array.strides, Array.dtype, Array.flags.writeable))
+        Snapshot = Array.copy(order='C')  # User arrays remain unchanged while speculative arithmetic and bounds are checked.
+        Snapshots.append(Snapshot)
+        if Buffer_Kinds[Slot] >= 10:
+            Value = N.empty(Array.size, dtype=N.float64)
+            Values = Value
+            Raw_View = Snapshot.view(N.uint8).reshape(-1)
+            if not FAST_PREFIXInteger_Copy(<void*>&Raw_View[0], &Values[0], Sizes[Slot], Buffer_Kinds[Slot]):
+                return None
+        else:
+            Value = Snapshot.astype(N.float64, copy=True).reshape(-1) if BUFFER_READS[Slot] else N.zeros(Array.size, dtype=Array.dtype)
+        if BUFFER_READS[Slot] and Buffer_Kinds[Slot] < 10:  # Non-finite data stays on the original path unless its full contract is supported.
+            Values = Value
+            for Position in range(Sizes[Slot]):
+                if not FAST_PREFIXFinite(Values[Position]):
+                    return None
+        Working.append(Value)
+        Raw_View = Value.view(N.uint8).reshape(-1)
+        Buffers[Slot] = <double*>&Raw_View[0]
+        Value = N.zeros(Array.size, dtype=N.uint8)
+        Masks.append(Value)
+        Mask = Value
+        Changed[Slot] = &Mask[0]
+        Value = Working[Slot].copy() if BUFFER_WRITES[Slot] and not NATIVE_COMPLETE else Working[Slot]
+        Trials.append(Value)
+        Raw_View = Value.view(N.uint8).reshape(-1)
+        Trial[Slot] = <double*>&Raw_View[0]
+        Value = Masks[Slot] if NATIVE_COMPLETE else N.zeros(Array.size, dtype=N.uint8)
+        Trial_Masks.append(Value)
+        Mask = Value
+        Trial_Changed[Slot] = &Mask[0]
+    Work_Size = sum([Sizes[Slot] // Shapes[Slot][0] for Slot in range(BUFFER_COUNT) if not BUFFER_SHAPE_ONLY[Slot]]) * Count
+    if RANDOM_COUNT:
+        import random as Random_Module
+        import _random as Random_Core
+        Random_Binding = Namespace[RANDOM_ROOT]
+        if Random_Binding is not Random_Module:
+            return None
+        Random_Callback = Random_Module.random
+        if B.type(Random_Callback) is not FAST_PREFIXTypes.BuiltinFunctionType or Random_Callback.__name__ != 'random' or Random_Callback.__self__ is not Random_Module._inst or B.type(Random_Module._inst) is not Random_Module.Random or Random_Module.Random.random is not Random_Core.Random.random:
+            return None
+        Random_Instance = Random_Callback.__self__
+        Random_State = Random_Core.Random.getstate(Random_Instance)
+        Random_Copy = Random_Core.Random()
+        Random_Core.Random.setstate(Random_Copy, Random_State)
+        Random_Per_Outer = RANDOM_COUNT
+        try:
+            for Expression in RANDOM_RANGES:
+                Random_Per_Outer *= B.len(B.eval(Expression, dict(Namespace, range=B.range, len=B.len)))
+                if Random_Per_Outer == 0:
+                    return None
+            Random_Total, Random_Prefix = Random_Per_Outer * Count, Random_Per_Outer * (Count - 1)
+        except (ArithmeticError, ValueError, TypeError, IndexError):
+            return None
+        Random_Array = N.empty(Random_Total, dtype=N.float64)
+        Random_View = Random_Array
+        Random_Values = &Random_View[0]
+        Random_Draw = Random_Copy.random
+        for Position in range(Random_Total):
+            if Position == Random_Prefix:
+                Random_Prefix_State = Random_Core.Random.getstate(Random_Copy)
+            Random_View[Position] = Random_Draw()
+    if FAST_PREFIXGet_Environment(&Saved) != 0:
+        return None
+    try:
+        PARALLEL_COMPUTE
+        if not Used_Parallel:
+            with nogil:
+                NUMERIC_PREFIXClear_Exceptions(FAST_PREFIXAll_Exceptions)
+                NUMERIC_PREFIXCompute(Buffers, Changed, Shapes, Strides, Buffer_Kinds, Output_Kinds, Inputs, Scalar_Kinds, Random_Values, Random_Total, 0, &Random_Prefix, Begin, Native_End, Step, Prefix_Assigned, &Valid)
+            Flags = FAST_PREFIXTest_Exceptions(FAST_PREFIXAll_Exceptions)
+        if not Valid:
+            return None
+        if not NATIVE_COMPLETE:
+            for Slot in range(BUFFER_COUNT):
+                if BUFFER_WRITES[Slot]:
+                    Trials[Slot][:] = Working[Slot]
+            for Slot in range(SLOT_COUNT):
+                Final_Inputs[Slot] = Inputs[Slot]
+                Final_Kinds[Slot] = Scalar_Kinds[Slot]
+            with nogil:
+                NUMERIC_PREFIXClear_Exceptions(FAST_PREFIXAll_Exceptions)
+                NUMERIC_PREFIXCompute(Trial, Trial_Changed, Shapes, Strides, Buffer_Kinds, Output_Kinds, Final_Inputs, Final_Kinds, Random_Values, Random_Total, Random_Prefix, &Random_Final, Last, End, Step, Assigned, &Valid)
+            Flags |= FAST_PREFIXTest_Exceptions(FAST_PREFIXAll_Exceptions)
+    finally:
+        FAST_PREFIXSet_Environment(&Saved)
+    if not Valid or Flags & (NUMERIC_PREFIXInvalid | NUMERIC_PREFIXDivide | NUMERIC_PREFIXOverflow | NUMERIC_PREFIXUnderflow):
+        return None
+    for Slot in REQUIRED_SLOTS:
+        Valid = Valid and Assigned[Slot] != 0
+    if not Valid:
+        Recoverable = True
+        if not Used_Parallel:
+            for Slot in REQUIRED_SLOTS:
+                if not Assigned[Slot] and not Prefix_Assigned[Slot]:
+                    Recoverable = False
+        if RECOVERABLE_TAIL and Recoverable:
+            Failure[0] = Count - 1
+        return None
+    if RANDOM_DYNAMIC:
+        Random_Core.Random.setstate(Random_Copy, Random_State)
+        for Position in range(Random_Prefix):
+            Random_Draw()
+        Random_Prefix_State = Random_Core.Random.getstate(Random_Copy)
+    Prepared_Outputs = []
+    for Slot in range(BUFFER_COUNT):
+        if BUFFER_WRITES[Slot]:
+            Prepared_Outputs.append(Working[Slot].reshape(Objects[Slot].shape).astype(Objects[Slot].dtype, copy=False))
+        else:
+            Prepared_Outputs.append(None)
+    Carry_Updates = {}
+    CARRY_UPDATES
+    if not NATIVE_COMPLETE:
+        Pool = CONSTANT_PREFIXPool(Source_Code)
+        Body = CONSTANT_PREFIXCode(NUMERIC_PREFIXBody, Pool)
+    if not FAST_PREFIXExclusive() or not FAST_PREFIXBindings(Namespace):
+        return None
+    RECHECK_BUILTINS
+    for Name, Global_Name in GLOBAL_BINDINGS:
+        if Namespace.get(Name) is not Source_Globals.get(Global_Name):
+            return None
+    for Name in Absent_Names:
+        if Name in Namespace:
+            return None
+    for Name, Value in Original_Names.items():
+        if Namespace.get(Name) is not Value:
+            return None
+    for Slot in range(BUFFER_COUNT):
+        Array = Objects[Slot]
+        if (Array.shape, Array.strides, Array.dtype, Array.flags.writeable) != Metadata[Slot]:
+            return None
+        if not BUFFER_SHAPE_ONLY[Slot] and Array.tobytes() != Snapshots[Slot].tobytes():
+            return None
+    if RANDOM_COUNT:
+        if Namespace.get(RANDOM_ROOT) is not Random_Module or Random_Module.random is not Random_Callback or Random_Core.Random.getstate(Random_Instance) != Random_State:
+            return None
+    if Flags and FAST_PREFIXPrepare_Exceptions(Flags, &Prepared) != 0:
+        return None
+    Published[0] = True
+    for Slot in range(BUFFER_COUNT):
+        if BUFFER_WRITES[Slot]:
+            N.copyto(Objects[Slot], Prepared_Outputs[Slot], where=Masks[Slot].reshape(Objects[Slot].shape).view(N.bool_))
+    if RANDOM_COUNT:
+        Random_Core.Random.setstate(Random_Instance, Random_Prefix_State)
+    Namespace.update(Carry_Updates)
+    if Flags:
+        FAST_PREFIXSet_Exceptions(&Prepared, Flags)
+    if not NATIVE_COMPLETE:
+        Namespace[OUTER_INDEX] = Last
+        B.exec(Body, Namespace)
+    FAST_PREFIXNative_Elements += Native_Count
+    if Used_Parallel:
+        FAST_PREFIXParallel_Elements += Native_Count
+        FAST_PREFIXLast_Team = Team[0]
+        _Pyceler_Dispatch_Event('Execution', 'native_parallel', Team[0])
+    else:
+        FAST_PREFIXLast_Team = 1
+        _Pyceler_Dispatch_Event('Execution', 'native_serial', 1)
+    return tuple([Namespace[Name] for Name in WRITTEN_NAMES])

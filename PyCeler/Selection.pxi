@@ -6,7 +6,7 @@ import tempfile
 from .Native_Build import _Interpreter
 from .Selection_Cache import _Normalize_Workloads, _Cache_Context, _Cache_Read, _Cache_Write
 from .Selection_Policy import _Selection_Table, _Candidate_Code, _Candidate_Name, _Candidate_Order, _Normalize_Tuning, _Explain_Selection
-
+# Build isolated candidates, validate behavior and assemble measured runtime dispatch policies.
 cdef str _Team_Probe = """
 from cython.parallel cimport parallel as _Probe_Parallel, threadid as _Probe_Id
 from openmp cimport omp_get_num_threads as _Probe_Count, omp_get_max_threads as _Probe_Max, omp_set_num_threads as _Probe_Set, omp_get_dynamic as _Probe_Dynamic
@@ -38,6 +38,9 @@ cdef tuple _Probe_Item(int Line, tuple Edit, bint Parallel):
     Region = Plan is not None and Plan.get("Region", False)
     Definition = copy.deepcopy(Plan["Probe"] if Region else Function)
     Definition.name = f"Item_{Line}"
+    Helper_Sources = Plan.get('Helper_Sources', ()) if Plan is not None else ()
+    while Definition.name in {Name for Name, Source in Helper_Sources}:
+        Definition.name += '_Probe'
     Definition.args.defaults = []
     Definition.returns = None
     for Arg in Definition.args.posonlyargs + Definition.args.args:
@@ -49,13 +52,45 @@ cdef tuple _Probe_Item(int Line, tuple Edit, bint Parallel):
                 Arguments=len(Names), Probe=Definition.name, Eligible=["Python", "Serial"])
     if Region:
         Item["Extracted"] = True
-    if Plan is not None and Plan.get("Kind") == "receive":
+    if Helper_Sources:
+        Item['Helper_Sources'] = Helper_Sources
+    if Plan is not None and Plan.get('Kind') == 'indexed_filter':
+        Item.update(Kind='indexed_filter', Names=Names, Columns=Plan['Columns'], Skipped_Candidates={'OpenMP': 'Ordered list publication'}, Numerical_Contract='Ordered squared distances on exact float64 cells')
+    elif Plan is not None and Plan.get('Kind') == 'array_region':
+        for Argument in Definition.args.posonlyargs + Definition.args.args:
+            if Plan['Input_Types'].get(Argument.arg) == 'integer':
+                Argument.annotation = ast.Name(id='int', ctx=ast.Load())
+            elif Argument.arg in Plan['Buffers']:
+                Argument.annotation = ast.Constant(value='numpy.ndarray')
+        Item.update(Kind='array_region', Flat=len(Plan['Loops']) == 1, Names=Plan['Names'], Buffers=Plan['Buffers'], Reads=Plan['Read_Buffers'], Probe_Inputs=Plan['Probe_Inputs'], Input_Types=Plan['Input_Types'], Range=Plan['Range'], Math_Imports=Plan['Math_Imports'], Array_Rows=Plan['Array_Rows'], Random=bool(Plan['Random']), Numerical_Contract='Ordered ndarray scalar operations; independent outer writes may use OpenMP')
+        if Parallel and Plan['Parallel']:
+            Item['Eligible'].append('OpenMP')
+        else:
+            Item['Skipped_Candidates'] = {'OpenMP': 'Disabled or outer iteration carries state'}
+        Item['Array_Axes'] = Plan['Array_Axes']
+        Item['Array_Padding'] = Plan.get('Array_Padding', {})
+    elif Plan is not None and Plan.get("Kind") == "numeric_region":
+        for Argument in Definition.args.posonlyargs + Definition.args.args:
+            if Plan['Input_Types'].get(Argument.arg) == 'integer':
+                Argument.annotation = ast.Name(id='int', ctx=ast.Load())
+        Item.update(Kind="numeric_region", Flat=len(Plan['Loops']) == 1, Names=Plan['Names'], Buffers=Plan['Buffers'], Reads=Plan['Read_Buffers'], Read_Kind=Plan['Read_Kind'], Probe_Inputs=Plan['Probe_Inputs'], Input_Types=Plan['Input_Types'], Range=Plan['Range'], Math_Imports=Plan['Math_Imports'],
+                    Numerical_Contract="Ordered native list arithmetic; proven independent outer writes can use OpenMP")
+        if Parallel and Plan["Parallel"]:
+            Item["Eligible"].append("OpenMP")
+        else:
+            Item["Skipped_Candidates"] = {"OpenMP": "Disabled, dependent storage or operations requiring Python"}
+    elif Plan is not None and Plan.get("Kind") == "list_grid":
+        Item.update(Kind="list_grid", Names=Plan['Names'], Grids=Plan['Grids'], Output=Plan['Output'], Ranges=Plan['Ranges'],
+                    Numerical_Contract="Exact float list-grid arithmetic with disjoint rows and ordered publication", Skipped_Candidates={"OpenMP": "List validation and publication use the GIL; this candidate runs serially"})
+    elif Plan is not None and Plan.get("Kind") == "receive":
         Item.update(Kind="receive", Reader=Plan["Reader"], Workload="In-memory fragmented reads; excludes transport latency",
                     Skipped_Candidates={"OpenMP": "Reads from one stream consume ordered state"})
     elif Plan is not None and Plan.get("Kind") == "span":
         Item.update(Kind="span", Mode=Plan["Mode"], Skipped_Candidates={"OpenMP": "Contiguous byte span operation runs serially"})
     elif Scalar:
         Item["Size_Arguments"] = _Size_Arguments(Plan)
+        if Plan.get("Scalar_Math"):
+            Item.update(Math_Imports=Plan["Math_Imports"], Float_Arguments=tuple(range(2, len(Names))), Numerical_Contract="Ordered float64 operations and guarded libm calls")
         if Plan.get("Kind") in ("scalar_region", "module_scalar"):
             Item["Range_Start_Argument"] = 1
             Item["Range_Step"] = Plan["Step"]
@@ -117,7 +152,27 @@ cdef tuple _Probe_Item(int Line, tuple Edit, bint Parallel):
             Item["Eligible"].append("OpenMP")
         else:
             Item["Skipped_Candidates"] = {"OpenMP": "Ordered original library calls require the GIL and original mutation order" if Kind == 'math_map' else "Disabled by caller"}
+    if Plan is not None and Plan.get('List_Alternative'):
+        Alternative = Plan['List_Alternative']
+        Item['List_Alternative'] = dict(Kind='numeric_region', Names=Names, Buffers=Alternative['Buffers'], Reads=Alternative['Read_Buffers'], Read_Kind=Alternative['Read_Kind'], Probe_Inputs=Alternative['Probe_Inputs'], Input_Types=Alternative['Input_Types'], Range=Alternative['Range'], Flat=len(Alternative['Loops']) == 1, Integer='Alternate' in Alternative or Alternative['Read_Kind'] == 'integer')
+        if Parallel and Alternative['Parallel'] and 'OpenMP' not in Item['Eligible']:
+            Item['Eligible'].append('OpenMP')
+            Item.get('Skipped_Candidates', {}).pop('OpenMP', None)
     return Item, ast.unparse(Definition)
+
+cdef tuple _Probe_Policy_Keys(dict Item):
+    Keys = ("int",) if Item["Kind"] in ("scalar", "receive", "list_grid", "numeric_region", "array_region", "indexed_filter") else ("<i4", "<i8", "<f4", "<f8", ">i4", ">i8", ">f4", ">f8")
+    if Item["Kind"] == "stencil":
+        Keys = ("|u1", "<i2", "<u2", "<i4", ">i2", ">u2", ">i4")
+    elif Item.get("Pixel_Dtypes"):
+        Keys = (*Keys, "|i1", "|u1", "<i2", "<u2", ">i2", ">u2")
+    if Item["Kind"] == "span":
+        Keys = ("bytearray",)
+    elif "Byte_Copy" in Item:
+        Keys = (*Keys, "bytearray")
+    if Item.get('List_Alternative'):
+        Keys = (*Keys, 'list_float', 'list_integer')
+    return Keys
 
 cdef dict _Probe_Builds(object Reference, list Items, object Folder, object Mode, object Version, dict Builds, tuple Variants=("Serial", "Optimized", "Tiled", "OpenMP"), bint Elide_Temporaries=False):
     Modules = {Item["Probe"]: {"Python": str(Reference)} for Item in Items}
@@ -134,16 +189,11 @@ cdef dict _Probe_Builds(object Reference, list Items, object Folder, object Mode
             if Item["Probe"] not in By_Name:
                 Item.setdefault("Skipped_Candidates", {})[Variant] = "Isolated definition did not reproduce the original plan"
                 continue
-            Keys = ("int",) if Item["Kind"] in ("scalar", "receive") else ("<i4", "<i8", "<f4", "<f8", ">i4", ">i8", ">f4", ">f8")
-            if Item["Kind"] == "stencil":
-                Keys = ("|u1", "<i2", "<u2", "<i4", ">i2", ">u2", ">i4")
-            elif Item.get("Pixel_Dtypes"):
-                Keys = (*Keys, "|i1", "|u1", "<i2", "<u2", ">i2", ">u2")
-            if Item["Kind"] == "span":
-                Keys = ("bytearray",)
-            elif "Byte_Copy" in Item:
-                Keys = (*Keys, "bytearray")
-            Choices[By_Name[Item["Probe"]]] = {Key: [(65536, Number), (2048, Number), (0, Number)] for Key in Keys}
+            Probe_Line = By_Name[Item['Probe']]
+            Probe_Item = _Probe_Item(Probe_Line, Prepared[2][Probe_Line], Threaded)[0]
+            Keys = tuple(dict.fromkeys((*_Probe_Policy_Keys(Item), *_Probe_Policy_Keys(Probe_Item))))
+            Item['Probe_Dispatch_Keys'] = Keys
+            Choices[Probe_Line] = {Key: [(65536, Number), (2048, Number), (0, Number)] for Key in Keys}
         Eligible = [Item for Item in Eligible if Item["Probe"] in By_Name]
         if not Eligible:
             continue
@@ -174,6 +224,7 @@ cdef dict _Probe_Builds(object Reference, list Items, object Folder, object Mode
                         Single = Individual / "Reference.py"
                         Imports = ("import socket\n" if Item["Kind"] == "receive" else "") + (f"import numpy as {Item['NumPy_Alias']}\n" if Item.get("NumPy_Alias") else "")
                         Imports += '\n'.join(Item.get('Math_Imports', ())) + '\n'
+                        Imports += '\n\n'.join(Source for Name, Source in Item.get('Helper_Sources', ())) + '\n'
                         Single.write_text(Imports + Definitions[Name] + "\n", encoding="utf-8")
                         Outcome = {}
                         Retry = _Probe_Builds(Single, [Item], Individual, Mode, Version, Outcome, (Variant,), Elide_Temporaries)
@@ -249,7 +300,7 @@ cdef dict _Unmeasured_Report(object File, tuple Prepared):
                for Finding in Findings if Finding.Line not in Covered]
     return dict(Format="PyCeler selection 1", Source=str(File), Status="measurement_disabled", Measurement=False,
                 Findings=[asdict(Finding) for Finding in Findings], Eligible_Regions=Eligible, Items=Eligible, Skipped=Skipped, Builds={},
-                Fallback_Contract="Unsupported Python source and guard fallbacks execute as CPython code; native Cython input and Convert=False retain Cython semantics.",
+                Fallback_Contract="One readable Cython module contains the application, guarded native kernels and explicit fallback code; Python-style definitions are compiled by Cython.",
                 Summary=dict(Candidate_Regions=len(Eligible), Native_Selected_Regions=0, Skipped_Loops=len(Skipped), Candidate_Builds=0,
                              Scope="Static analysis only; eligible candidates were not behaviorally validated or timed"))
 
@@ -280,7 +331,7 @@ cdef tuple _Select_Items(object File, tuple Prepared, object Folder, object Mode
     Skipped = [dict(Function=Finding.Function, Line=Finding.Line, End_Line=Finding.End_Line, Reason=Finding.Reason, Action="Keep original loop",
                     Diagnostics=[Diagnostic._As_Dict() for Diagnostic in Finding.Diagnostics]) for Finding in Findings if Finding.Line not in Covered]
     Report = dict(Format="PyCeler selection 1", Source=str(File), Minimum_Speedup=Gain, Build_Mode=Mode, Items=Items, Skipped=Skipped, Builds=Builds,
-                  Fallback_Contract="Python-source conversion preserves unsupported code and guarded fallbacks as CPython code. Native .pyx/.pxi input and Convert=False retain Cython compilation semantics.")
+                  Fallback_Contract="Converted Python is emitted as one readable .pyx without executable source strings. Application definitions and explicit guard fallbacks use Cython compilation semantics; native work is validated separately.")
     if not Items:
         _Selection_Report(Report)
         return Choices, None, Report
@@ -302,6 +353,7 @@ cdef tuple _Select_Items(object File, tuple Prepared, object Folder, object Mode
     Imports = "import socket\n" if any(Item["Kind"] == "receive" for Item in Items) else ""
     Imports += "".join(f"import numpy as {Alias}\n" for Alias in sorted({Item["NumPy_Alias"] for Item in Items if "NumPy_Alias" in Item}))
     Imports += '\n'.join(sorted({Import for Item in Items for Import in Item.get('Math_Imports', ())})) + '\n'
+    Imports += '\n\n'.join(sorted({Source for Item in Items for Name, Source in Item.get('Helper_Sources', ())})) + '\n'
     Reference.write_text(Imports + "\n\n".join(Definitions) + "\n", encoding="utf-8")
     Variants = tuple(_Candidate_Order({Candidate for Item in Items for Candidate in Item["Eligible"]}))
     Modules = _Probe_Builds(Reference, Items, Folder, Mode, Version, Builds, Variants, Elide_Temporaries)

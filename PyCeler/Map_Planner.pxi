@@ -1,6 +1,6 @@
 class _Unsupported_Map(Exception):
     pass
-
+# Recognize rectangular maps and retain arithmetic, bounds and branch facts for code generation.
 cdef object _Axis_Source(object Bound, int Axis, tuple Indices, dict Aliases):
     if isinstance(Bound, ast.Name) and Bound.id in Aliases:
         Source, Dimension = Aliases[Bound.id]

@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 from PyCeler import Analyze, Compile, Convert
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for numeric spans around callbacks and continuation state.
 class Scalar_Regions(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
     _Fixture = _Root / "Test" / "Scalar_Regions.py"
@@ -42,7 +42,7 @@ class Scalar_Regions(unittest.TestCase):
         self.assertEqual(self._Fixture.read_bytes(), Original)
 
     def test_Native_Regions_Preserve_Progress_And_Fallbacks(self):
-        Binary = Compile(self._Fixture, self._Folder / "Native", Select=False, OpenMP=False)
+        Binary = Compile(self._Fixture, self._Folder / "Native", Select=False, OpenMP=False)  # Build a real extension; a static finding alone does not prove native execution.
         Program = (self._Root / "Test" / "Scalar_Regions_Probe.py").read_text(encoding="utf-8")
         self._Probe(Binary, Program)
 

@@ -3,7 +3,7 @@ from pathlib import Path
 from PyCeler import Analyze, Loop_Finding
 from Test.Benchmark_Large_Source import _Source
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for ranking.
 class Static_Ranking(unittest.TestCase):
     _Directory = Path(__file__).resolve().parent
 
@@ -41,7 +41,7 @@ class Static_Ranking(unittest.TestCase):
         self.assertIsNone(Finding.Estimated_Iterations)
 
     def test_Large_Source_Tracks_Each_Function_And_Loop(self):
-        with Temporary_Directory(dir=self._Directory.parent / "Test_Run") as Folder:
+        with Temporary_Directory(dir=self._Directory.parent / "Test_Run") as Folder:  # Keep generated sources and binaries outside the maintained fixture tree.
             Source = Path(Folder) / "Many_Functions.py"
             Source.write_text(_Source(100), encoding="utf-8")
             Findings = Analyze(Source)

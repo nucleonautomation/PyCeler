@@ -1,7 +1,7 @@
 from builtins import ZeroDivisionError as _Pyceler_Zero_Division
 cdef unsigned long long _Pyceler_Region_Attempts = 0
 cdef unsigned long long _Pyceler_Region_Fallbacks = 0
-
+# Guard scalar-region attempts and record fallback without changing the caller-visible state.
 def _Pyceler_Region_Anchor():
     pass
 
@@ -44,7 +44,7 @@ def _Pyceler_Region_Count(object Values):
         return 0 if Values.start >= Values.stop else 1 + (Values.stop - 1 - Values.start) // Step
     return 0 if Values.start <= Values.stop else 1 + (Values.start - 1 - Values.stop) // -Step
 
-def _Pyceler_Region_Spans(object Values, object Period):
+def _Pyceler_Region_Spans(object Values, object Period, object Maximum=None):
     Step = Values.step
     Count = _Pyceler_Region_Count(Values)
     Position = 0
@@ -58,7 +58,9 @@ def _Pyceler_Region_Spans(object Values, object Period):
             Boundary = Offset + 1
     while Position < Count:
         End = Boundary if Boundary < Count else Count
+        if Maximum is not None and End - Position > Maximum:
+            End = Position + Maximum
         yield Values[Position:End], End - Position
         Position = End
-        if Interval is not None:
+        if Interval is not None and Position == Boundary:
             Boundary += Interval

@@ -11,7 +11,7 @@ from PyCeler.Math_Maps import _Math_Map_Plans
 from PyCeler.Math_Registry import _Math_Registry
 from Test.Math_Map_Corpus import _Math_Map_Corpus
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for ordered library calls and scalar literal identity.
 class Ordered_Math_Maps(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
@@ -45,14 +45,14 @@ class Ordered_Math_Maps(unittest.TestCase):
     def test_All_Math_Families_Native_Entry_And_Observable_Behavior(self):
         Source_Text, Recipes = _Math_Map_Corpus()
         (self._Root / "Test_Run").mkdir(exist_ok=True)
-        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:
+        with Temporary_Directory(dir=self._Root / "Test_Run") as Directory:  # Keep generated sources and binaries outside the maintained fixture tree.
             Folder = Path(Directory)
             Source = Folder / "Math_Coverage.py"
             Source.write_text(Source_Text, encoding="utf-8")
             Recipe_File = Folder / "Recipes.json"
             Recipe_File.write_text(json.dumps(Recipes), encoding="utf-8")
             with patch.dict(os.environ, PYCELER_BUILD_DIR=str(Folder / "Build")):
-                Binary = Compile(Source, Folder / "Native", Select=False, OpenMP=False)
+                Binary = Compile(Source, Folder / "Native", Select=False, OpenMP=False)  # Build a real extension; a static finding alone does not prove native execution.
             for Repeat in range(3):
                 with self.subTest(Repeat=Repeat):
                     Process = subprocess.run([sys.executable, "-I", "-B", str(self._Root / "Test" / "Math_Maps_Probe.py"), str(Binary), str(Source), str(Recipe_File)], capture_output=True, text=True, timeout=120)

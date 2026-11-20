@@ -10,7 +10,7 @@ cdef str _Structural_Value(tuple Recipe, dict Aliases):
         Value = f"T{Aliases.get(Recipe[1], Recipe[1])}"
         return f"(-{Value} if {Value} < 0 else {Value})"
     return f"T{Aliases.get(Recipe[1], Recipe[1])} {Kind} T{Aliases.get(Recipe[2], Recipe[2])}"
-
+# Emit proven structural rewrites such as safe loop ordering and reusable expressions.
 cdef list _Structural_Item(dict Plan, str Name, str Parameters, list Actions, bint Optimized):
     Aliases, Seen, Stored, Lines = {}, {}, {}, []
     Invariant = set(Plan["Invariant"]) if Optimized else set()

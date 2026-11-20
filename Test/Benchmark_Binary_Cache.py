@@ -6,7 +6,7 @@ import sys
 import tempfile
 from pathlib import Path
 from time import perf_counter
-
+# Measurement harness for cache identity and invalidation.
 def _Main():
     Root = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(Root))

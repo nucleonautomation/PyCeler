@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 from PyCeler import Analyze, Compile, Convert
 from Test.Workspace import Temporary_Directory
-
+# Regression checks for scalar strides.
 class Scalar_Strides(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
     _Steps = (-7, -4, -3, -2, -1, 1, 2, 3, 4, 7)
@@ -65,7 +65,7 @@ class Scalar_Strides(unittest.TestCase):
         self.assertEqual(len(Findings), 12)
         self.assertTrue(all(Item.Classification == "Scalar_Numeric_Region" for Item in Findings if Item.Function is not None), Findings)
         self.assertTrue(all(Item.Classification == "Module_Scalar_Region" for Item in Findings if Item.Function is None), Findings)
-        Binary = Compile(Source, self._Folder / "Native", Select=False, OpenMP=False)
+        Binary = Compile(Source, self._Folder / "Native", Select=False, OpenMP=False)  # Build a real extension; a static finding alone does not prove native execution.
         Program = (self._Root / "Test" / "Scalar_Strides_Probe.py").read_text(encoding="utf-8")
         Prefix = "import sys\nsys.path.insert(0, sys.argv[1])\nReference_Path = " + repr(str(Source)) + "\n"
         Process = subprocess.run([sys.executable, "-I", "-B", "-c", Prefix + Program, str(Binary.parent)], text=True, capture_output=True)

@@ -12,7 +12,7 @@ import tempfile
 import time
 from dataclasses import asdict
 from pathlib import Path
-
+# Measurement harness for observable module globals and partial failures.
 def _Worker(File, Destination):
     Start = time.perf_counter()
     Spec = importlib.util.spec_from_file_location(File.name.split(".")[0], File)

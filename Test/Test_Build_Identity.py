@@ -5,7 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory as Temporary_Directory
 from unittest.mock import patch
 import Compile
-
+# Regression checks for stale development-build rejection.
 class Build_Provenance(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 

@@ -3,7 +3,7 @@ import math
 import random
 import sys
 import Scalar_Arithmetic as Native
-
+# Isolated verification for checked Python integer arithmetic and exceptions.
 Spec = importlib.util.spec_from_file_location("Original_Scalar_Arithmetic", Reference_Path)
 Original = importlib.util.module_from_spec(Spec)
 Spec.loader.exec_module(Original)

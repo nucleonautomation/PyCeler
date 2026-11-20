@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 from Test.Workspace import Temporary_Directory
 from PyCeler import Analyze, Compile, Convert
-
+# Regression checks for checked Python integer arithmetic and exceptions.
 class Scalar_Arithmetic(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
     _Fixture = _Root / "Test" / "Scalar_Arithmetic.py"
@@ -32,7 +32,7 @@ class Scalar_Arithmetic(unittest.TestCase):
         self.assertIn("_Pyceler_Scalar_Rounding", Text)
 
     def test_Native_Arithmetic_Preserves_Python(self):
-        Binary = Compile(self._Fixture, self._Folder / "Native", Select=False, OpenMP=False)
+        Binary = Compile(self._Fixture, self._Folder / "Native", Select=False, OpenMP=False)  # Build a real extension; a static finding alone does not prove native execution.
         Program = (self._Root / "Test" / "Scalar_Arithmetic_Probe.py").read_text(encoding="utf-8")
         Program = "import sys\nsys.path.insert(0, sys.argv[1])\nReference_Path = " + repr(str(self._Fixture)) + "\n" + Program
         Result = subprocess.run([sys.executable, "-I", "-B", "-c", Program, str(Binary.parent)], text=True, capture_output=True)

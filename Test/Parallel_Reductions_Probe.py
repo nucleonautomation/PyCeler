@@ -3,7 +3,7 @@ import random
 import sys
 from concurrent.futures import ThreadPoolExecutor
 import Parallel_Reductions as Native
-
+# Isolated verification for proof-qualified reductions and actual worker teams.
 Spec = importlib.util.spec_from_file_location("Original_Parallel_Reductions", Reference_Path)
 Original = importlib.util.module_from_spec(Spec)
 Spec.loader.exec_module(Original)

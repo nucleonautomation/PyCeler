@@ -1,5 +1,5 @@
 import numpy as np
-
+# Test support/workload for dependency-safe structural loop rewrites.
 def Fused_Maps(Input, Output_A, Output_B):
     for Index in range(len(Input)):
         Output_A[Index] = Input[Index] * 2

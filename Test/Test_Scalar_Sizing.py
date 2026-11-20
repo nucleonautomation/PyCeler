@@ -1,7 +1,7 @@
 import ast
 import unittest
 from PyCeler.Engine import _Scalar_Size_Cases, _Scalar_Size_Plan, _Scalar_Workload_Size
-
+# Regression checks for scalar sizing.
 class Scalar_Workload_Sizing(unittest.TestCase):
     def _Plan(self, Source):
         Function = ast.parse(Source).body[0]

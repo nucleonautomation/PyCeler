@@ -3,23 +3,19 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 import numpy as Numpy
 import Map_Loops as Native
-
+# Isolated verification for map.
 Spec = importlib.util.spec_from_file_location("Reference_Maps", Reference_Path)
 Reference = importlib.util.module_from_spec(Spec)
 Spec.loader.exec_module(Reference)
 
 def _Call(Function, Args, Index, Fallback):
-    Calls = []
-    def _Observe(Frame, Event, Value):
-        if Event == "call" and Frame.f_code.co_filename == "Map_Loops.py" and Frame.f_code.co_name == Function.__name__:
-            Calls.append(Event)
-    sys.setprofile(_Observe)
+    Native._Pyceler_Dispatch_Stats(True, True)
     try:
         Result = Function(*Args)
     finally:
-        sys.setprofile(None)
+        Report = Native._Pyceler_Dispatch_Stats(False)
     assert Result is Args[Index]
-    assert bool(Calls) == Fallback, (Function.__name__, Calls)
+    assert bool(Report.get('Execution', {}).get('Native_Entry')) != Fallback, (Function.__name__, Report)
     return Result
 
 for Dtype in (Numpy.int32, Numpy.int64, Numpy.float32, Numpy.float64):
@@ -44,7 +40,7 @@ for Dtype in (Numpy.int32, Numpy.int64, Numpy.float32, Numpy.float64):
     Numpy.testing.assert_array_equal(Actual, Reference.Select(Left, Right, Numpy.empty_like(Actual)))
     _Call(Native.Difference, (Left, Right, Actual), 2, False)
     Numpy.testing.assert_array_equal(Actual, Reference.Difference(Left, Right, Numpy.empty_like(Actual)))
-    _Call(Native.Blend, (Left, Right, Actual, 2), 2, Dtype in (Numpy.float32, Numpy.float64))
+    _Call(Native.Blend, (Left, Right, Actual, 2), 2, False)
     Numpy.testing.assert_array_equal(Actual, Reference.Blend(Left, Right, Numpy.empty_like(Actual), 2))
 
 Base = Numpy.arange(9, dtype=Numpy.int64)
@@ -137,9 +133,13 @@ Numpy.testing.assert_array_equal(Copy, Reference.Threshold_Grid(Floats, Numpy.em
 for Dtype in (Numpy.float32, Numpy.float64):
     Source = Numpy.array([-0.0, 0.5, 4.5], dtype=Dtype)
     Result = Numpy.empty_like(Source)
-    _Call(Native.Scale, (Source, Result), 1, Dtype is Numpy.float32)
+    _Call(Native.Scale, (Source, Result), 1, False)
     Expected = Reference.Scale(Source, Numpy.empty_like(Source))
     assert Result.tobytes() == Expected.tobytes()
+    Grid = (Numpy.arange(4096) * 0.125).astype(Dtype).reshape(64, 64)
+    Output = Numpy.zeros_like(Grid)
+    _Call(Native.Transpose_Into, (Grid, Output), 1, False)
+    assert Output.tobytes() == Reference.Transpose_Into(Grid, Numpy.zeros_like(Grid)).tobytes()
     _Call(Native.Threshold_Grid, (Source.reshape(1, 3), Result.reshape(1, 3), 0.5), 1, False)
     assert Result.tolist() == [0, 1, 1]
     Maximum = Numpy.finfo(Dtype).max

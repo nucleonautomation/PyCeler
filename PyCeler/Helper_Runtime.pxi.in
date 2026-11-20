@@ -1,0 +1,66 @@
+from cpython.object cimport PyObject_Type as HELPER_PREFIXType
+from cpython.float cimport PyFloat_CheckExact as HELPER_PREFIXFloat
+from cpython.long cimport PyLong_CheckExact as HELPER_PREFIXInteger
+from cpython.bool cimport PyBool_Check as HELPER_PREFIXBoolean
+from cpython.unicode cimport PyUnicode_CheckExact as HELPER_PREFIXString
+from cpython.bytes cimport PyBytes_CheckExact as HELPER_PREFIXBytes
+from cpython.tuple cimport PyTuple_CheckExact as HELPER_PREFIXTuple
+from libc.stdint cimport uint64_t as HELPER_PREFIXBits
+from libc.string cimport memcpy as HELPER_PREFIXCopy
+# Validate helper identity, globals and defaults before using an inlined native helper body.
+cdef object HELPER_PREFIXFunction_Type = _Pyceler_Helper_Function_Type
+cdef object HELPER_PREFIXCode_Type = _Pyceler_Helper_Code_Type
+
+cdef object HELPER_PREFIXConstant(object Value, int Depth=0):
+    cdef double Number
+    cdef HELPER_PREFIXBits Bits
+    if Depth > 64:
+        return None
+    if Value is None:
+        return ('none',)
+    if Value is Ellipsis:
+        return ('ellipsis',)
+    if HELPER_PREFIXBoolean(Value):
+        return ('boolean', Value)
+    if HELPER_PREFIXInteger(Value):
+        return ('integer', Value)
+    if HELPER_PREFIXFloat(Value):
+        Number = Value
+        HELPER_PREFIXCopy(&Bits, &Number, sizeof(double))
+        return ('float', Bits)
+    if HELPER_PREFIXString(Value):
+        return ('string', Value)
+    if HELPER_PREFIXBytes(Value):
+        return ('bytes', Value)
+    if HELPER_PREFIXTuple(Value):
+        Parts = []
+        for Value in Value:
+            Part = HELPER_PREFIXConstant(Value, Depth + 1)
+            if Part is None:
+                return None
+            Parts.append(Part)
+        return ('tuple', tuple(Parts))
+    return None
+
+cdef object HELPER_PREFIXCode(object Code):
+    if HELPER_PREFIXType(Code) is not HELPER_PREFIXCode_Type or Code.co_freevars or Code.co_cellvars:
+        return None
+    Constants = HELPER_PREFIXConstant(Code.co_consts)
+    Names = HELPER_PREFIXConstant(Code.co_names)
+    Variables = HELPER_PREFIXConstant(Code.co_varnames)
+    if Constants is None or Names is None or Variables is None:
+        return None
+    return (Code.co_argcount, Code.co_posonlyargcount, Code.co_kwonlyargcount, Code.co_nlocals, Code.co_stacksize, Code.co_flags & 1023, Code.co_code, Constants, Names, Variables, Code.co_exceptiontable)
+
+cdef bint HELPER_PREFIXCheck(dict Namespace, dict Source_Globals):
+    for Root, Position, Global_Name in HELPER_ROOTS:
+        Function = Namespace.get(Root) if Global_Name is None else Source_Globals.get(Global_Name)
+        if HELPER_PREFIXType(Function) is not HELPER_PREFIXFunction_Type or Function.__globals__ is not Source_Globals:
+            return False
+        if Function is not _Pyceler_Helper_Originals.get(HELPER_NAMES[Position]):
+            return False
+        if Function.__defaults__ is not None or Function.__kwdefaults__ is not None or Function.__closure__ is not None:
+            return False
+        if not HELPER_MONITOR(Function.__code__):
+            return False
+    return True

@@ -3,7 +3,7 @@ cdef unsigned long long _Pyceler_Reduction_Serial_Calls = 0
 cdef int _Pyceler_Reduction_Last_Team = 0
 cdef object _Pyceler_Reduction_Last_Mode = None
 cdef object _Pyceler_Reduction_Fallback_Reason = None
-
+# Dispatch proven scalar reductions and report the worker team that actually executed.
 def _Pyceler_Parallel_Stats():
     return _Pyceler_Reduction_Calls, _Pyceler_Reduction_Last_Team
 

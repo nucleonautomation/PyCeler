@@ -1,5 +1,5 @@
 import time
-
+# Test support/workload for numeric spans around callbacks and continuation state.
 def Progress_Control(Iterations, Events):
     Total = 0
     Index = -23

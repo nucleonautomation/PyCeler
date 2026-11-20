@@ -1,5 +1,5 @@
 from libc.string cimport memmove as _Pyceler_Span_Move
-
+# Publish checked copy, zero and fill spans while preserving untouched tails.
 cdef object _Pyceler_Copy_Span(object Source, object Output, object Offset, object Count, object Baseline, bint Unused):
     import builtins as B
     cdef const unsigned char[::1] S

@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 from PyCeler import Compile, Convert
 from PyCeler.Source_Inputs import _Source_Inputs, _Stage_Compile_Sources
-
+# Regression checks for compile only.
 class Compile_Only_Sources(unittest.TestCase):
     _Root = Path(__file__).resolve().parents[1]
 
@@ -56,7 +56,7 @@ class Compile_Only_Sources(unittest.TestCase):
         Converted = Convert(Source, self._Folder / "Converted")
         self.assertEqual(Converted.suffix, ".pxi")
         self.assertEqual(Converted.read_bytes(), Source.read_bytes())
-        Binary = Compile(Source, self._Folder / "Standalone", Convert=False)
+        Binary = Compile(Source, self._Folder / "Standalone", Convert=False)  # Build a real extension; a static finding alone does not prove native execution.
         self._Probe(Binary.parent, "from Standalone import Sum\nassert Sum(4, 5) == 9")
         Native_Source = self._Inputs / "Native_Module.pyx"
         Native_Converted = Convert(Native_Source, self._Folder / "Native_Converted")
